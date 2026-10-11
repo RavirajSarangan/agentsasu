@@ -13,13 +13,15 @@ def _decide(args: dict[str, Any]) -> Decision:
 @tool(
     "shell_run",
     "Run a terminal command. Prefer the specific tools; use this only when nothing else fits. Not undoable.",
-    obj(["command"], command={"type": "string"}),
+    obj(["command"], command={"type": "string"}, minutes={"type": "number"}),
     risk="confirm",
     decide=_decide,
     untrusted_output=True,
 )
 async def shell_run(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     cmd = str(args["command"])
-    p = await ctx.run(["/bin/zsh", "-c", cmd], 30, None)
+    # long jobs (tests, builds) may ask for up to an hour; the default stays 30 s
+    limit = min(3600.0, max(30.0, float(args.get("minutes") or 0) * 60))
+    p = await ctx.run(["/bin/zsh", "-c", cmd], limit, None)
     out = (p.out + ("\n" + p.err if p.err else ""))[:6000]
     return ToolResult(p.ok, f"exit {p.code}", out)

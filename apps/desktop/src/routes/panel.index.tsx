@@ -8,6 +8,7 @@ import { agentStore } from "../agent/store";
 import { buildTimeline, type TimelineItem, type Turn } from "../agent/timeline";
 import { Halo } from "../robot/Halo";
 import { CareCard } from "../settings/CareSettings";
+import { WatchCard } from "../settings/WatchCard";
 import { SasuRobot } from "../robot/SasuRobot";
 import { STATE_STYLE } from "../robot/stateStyle";
 import { play } from "../sound/player";
@@ -31,6 +32,7 @@ function Home() {
       <BrainBanner />
       <Hero />
       <CareCard />
+      <WatchCard />
       <CommandBar />
       <Timeline />
       <DevLog />

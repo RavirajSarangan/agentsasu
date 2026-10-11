@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from . import assist, briefing, care, extras, fastpath, focus, lifelog, tidy
+from . import assist, briefing, care, extras, fastpath, focus, lifelog, tidy, watch
 from . import memory as mem
 from .brain.agent import Agent, Executor, Turn
 from .brain.providers import SPECS, ChatClient, LLMError, pick_model
@@ -72,6 +72,7 @@ from .protocol import (
     VoiceSetup,
     VoiceStatus,
     Wake,
+    WatchState,
 )
 from .security.audit import AuditLog
 from .security.canary import Canaries
@@ -181,7 +182,15 @@ class Core:
         self.care_store = care.CareStore(data_dir / "care.bin", vault.aead)
         self.care = care.Tracker()
         self.relations: dict[str, str] = {}
-        self.home = Path.home()  # where Desktop / Downloads live (tests point it elsewhere)  # "son" → "Raviraj" (Settings → Family → Care)
+        self.home = Path.home()  # where Desktop / Downloads live (tests point it elsewhere)
+        self.watches: dict[str, tuple[watch.Watch, asyncio.Task[None]]] = {}
+        self._bg: asyncio.Task[None] | None = None
+        self.watch_every = {
+            "download": 2.0,
+            "file": 5.0,
+            "battery": 60.0,
+            "page": 600.0,
+        }  # "son" → "Raviraj" (Settings → Family → Care)
         self.clock = __import__("time").time
         self._siren_turn: str | None = None
         self._strangers: deque[float] = deque(maxlen=10)
@@ -336,6 +345,15 @@ class Core:
                 return
             if extras.is_read(text):
                 self._start(self.read_aloud())
+                return
+            if watch.STOP.search(text):
+                self._start(self.stop_watches(lang or detect_lang(text)))
+                return
+            if watch.LIST.search(text):
+                self._start(self.list_watches(lang or detect_lang(text)))
+                return
+            if (wreq := watch.parse(text)) is not None:
+                self._start(self.start_watch(wreq, text, lang or detect_lang(text)))
                 return
             if (where := tidy.target(text)) is not None and len(text.split()) <= 8:
                 self._start(self.tidy_turn(where, text, lang or detect_lang(text)))
@@ -576,6 +594,235 @@ class Core:
         if out:
             await self.speak(out, "ta" if assist.TAMIL.search(out) else lang)
         await self.hub.emit(TurnDone(ok=bool(out)))
+
+    # ── watch & tell ───────────────────────────────────────────────────────
+    async def start_watch(self, req: watch.Request, text: str, lang: Lang) -> None:
+        ta = lang == "ta"
+        await self.hub.emit(Transcript(text=text, lang=lang))
+        if len(self.watches) >= watch.MAX_WATCHES:
+            return await self._say_turn(
+                "ஏற்கனவே 10 விஷயம் பார்த்துட்டு இருக்கேன்." if ta else "I'm already watching 10 things.",
+                lang,
+                ok=False,
+            )
+        label, ready = await self._watch_label(req, lang)
+        if label is None:
+            return await self._say_turn(ready, lang, ok=False)
+        w = watch.Watch(req.kind, label)
+        task = asyncio.create_task(self._run_watch(w, req, ready, lang))
+        self.watches[w.id] = (w, task)
+        self.audit.append("watch", id=w.id, watch=w.kind, state="started")
+        await self.hub.emit(WatchState(id=w.id, kind=w.kind, label=label, state="started"))
+        await self._say_turn(
+            f"சரி, {label} முடிஞ்சதும் சொல்றேன்." if ta else f"Okay, I'll tell you: {label}.", lang
+        )
+
+    async def _watch_label(self, req: watch.Request, lang: Lang) -> tuple[str | None, str]:
+        """(label, setup) for a new watch, or (None, why it can't start)."""
+        from .tools.runtime import applescript
+
+        ta = lang == "ta"
+        if req.kind == "download":
+            parts = watch.partials(self.home / "Downloads")
+            if not parts:
+                return None, (
+                    "இப்போ எந்த download-உம் ஓடல." if ta else "I don't see a download running."
+                )
+            name = sorted(parts)[0].rsplit(".", 1)[0]
+            return f"download {name}", ""
+        if req.kind == "battery":
+            now = watch.battery_percent((await self.runner(["pmset", "-g", "batt"], 5, None)).out)
+            if now is None:
+                return None, "I can't read the battery on this Mac."
+            return f"battery at {req.level}%", "up" if req.level >= now else "down"
+        if req.kind == "file":
+            got = await self.runner(
+                applescript(
+                    'tell application "Finder" to set s to selection',
+                    'if s is {} then return ""',
+                    "return POSIX path of (item 1 of s as alias)",
+                ),
+                8,
+                None,
+            )
+            path = got.out.strip()
+            if not path or not Path(path).is_file():
+                return None, (
+                    "Finder-ல file-ஐ select பண்ணுங்க." if ta else "Select the file in Finder first."
+                )
+            return f"{Path(path).name} changes", path
+        if req.kind == "page":
+            url = await self._front_url()
+            if not url:
+                return None, (
+                    "Safari அல்லது Chrome-ல page-ஐ திறங்க."
+                    if ta
+                    else "Open the page in Safari or Chrome first."
+                )
+            host = url.split("/")[2] if "://" in url else url
+            return (f"price drop on {host}" if req.price else f"{host} changes"), url
+        return f"“{req.command[:60]}” finishes", req.command
+
+    async def _front_url(self) -> str:
+        from .tools.runtime import applescript
+
+        front = (
+            await self.runner(
+                applescript(
+                    'tell application "System Events" to return name of first process whose frontmost is true'
+                ),
+                5,
+                None,
+            )
+        ).out.strip()
+        scripts = {
+            "Safari": 'tell application "Safari" to return URL of current tab of front window',
+            "Google Chrome": 'tell application "Google Chrome" to return URL of active tab of front window',
+            "Brave Browser": 'tell application "Brave Browser" to return URL of active tab of front window',
+            "Microsoft Edge": 'tell application "Microsoft Edge" to return URL of active tab of front window',
+            "Arc": 'tell application "Arc" to return URL of active tab of front window',
+        }
+        if front not in scripts:
+            return ""
+        return str((await self.runner(applescript(scripts[front]), 5, None)).out).strip()
+
+    async def _run_watch(self, w: watch.Watch, req: watch.Request, setup: str, lang: Lang) -> None:
+        ta = lang == "ta"
+        every = self.watch_every
+        try:
+            if req.kind == "download":
+                folder = self.home / "Downloads"
+                while watch.partials(folder):
+                    await asyncio.sleep(every["download"])
+                done = watch.newest_file(folder)
+                size = -1
+                while done is not None and done.exists() and done.stat().st_size != size:
+                    size = done.stat().st_size
+                    await asyncio.sleep(every["download"])
+                name = done.name if done else "your download"
+                msg = f"Download முடிஞ்சது: {name}." if ta else f"Your download finished: {name}."
+            elif req.kind == "battery":
+                while True:
+                    out = (await self.runner(["pmset", "-g", "batt"], 5, None)).out
+                    pct = watch.battery_percent(out)
+                    if pct is not None and (
+                        pct >= req.level if setup == "up" else pct <= req.level
+                    ):
+                        break
+                    await asyncio.sleep(every["battery"])
+                msg = f"Battery {pct}% ஆச்சு." if ta else f"Battery is at {pct}%."
+            elif req.kind == "file":
+                path = Path(setup)
+                start = path.stat().st_mtime
+                while path.exists() and path.stat().st_mtime == start:
+                    await asyncio.sleep(every["file"])
+                msg = f"{path.name} மாறிடுச்சு." if ta else f"{path.name} just changed."
+            elif req.kind == "page":
+                first = await watch.fetch(setup, self.transport)
+                if first is None:
+                    raise RuntimeError("page")
+                base_price = watch.first_price(first) if req.price else None
+                base = watch.fingerprint(first)
+                while True:
+                    await asyncio.sleep(every["page"])
+                    text = await watch.fetch(setup, self.transport)
+                    if text is None:
+                        continue
+                    if base_price is not None:
+                        price = watch.first_price(text)
+                        if price is not None and price < base_price:
+                            msg = (
+                                f"விலை குறைஞ்சிருக்கு: {base_price:g} → {price:g}."
+                                if ta
+                                else f"Price dropped from {base_price:g} to {price:g}."
+                            )
+                            break
+                    elif watch.fingerprint(text) != base:
+                        msg = "Page மாறிடுச்சு." if ta else "The page changed."
+                        break
+            else:
+                turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role="owner")
+                result = await self._executor().call(
+                    "shell_run", {"command": setup, "minutes": 60}, turn
+                )
+                ok = result.startswith("OK")
+                last = [
+                    ln for ln in result.splitlines()[1:] if ln.strip() and "untrusted>" not in ln
+                ]
+                tail = last[-1][:120] if last and not ok else ""
+                if ok:
+                    msg = (
+                        f"“{setup[:40]}” முடிஞ்சது, pass."
+                        if ta
+                        else f"“{setup[:40]}” finished fine."
+                    )
+                else:
+                    msg = (
+                        f"“{setup[:40]}” fail ஆச்சு. {tail}"
+                        if ta
+                        else f"“{setup[:40]}” failed. {tail}"
+                    ).strip()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 — a broken watch must not take the core down
+            msg = (
+                "I stopped watching: something went wrong."
+                if not ta
+                else "பார்க்க முடியல, நிறுத்திட்டேன்."
+            )
+        self.watches.pop(w.id, None)
+        while self._turn and not self._turn.done():  # never talk over a reply in progress
+            await asyncio.sleep(0.2)
+        self.audit.append("watch", id=w.id, watch=w.kind, state="fired")
+        await self.hub.emit(WatchState(id=w.id, kind=w.kind, label=w.label, state="fired"))
+        await self._notify(msg)
+        await self.speak(msg, lang)
+
+    async def _notify(self, text: str) -> None:
+        from .tools.runtime import applescript
+
+        await self.runner(
+            applescript('display notification (item 1 of argv) with title "Sasu"') + [text], 5, None
+        )
+
+    async def stop_watches(self, lang: Lang) -> None:
+        n = len(self.watches)
+        for wid in list(self.watches):
+            self.cancel_watch(wid)
+        await self._say_turn(
+            (
+                f"{n} watch நிறுத்திட்டேன்."
+                if lang == "ta"
+                else f"Stopped {n} watch{'es' if n != 1 else ''}."
+            )
+            if n
+            else ("எதுவும் பார்க்கல." if lang == "ta" else "I'm not watching anything."),
+            lang,
+        )
+
+    def cancel_watch(self, wid: str) -> bool:
+        item = self.watches.pop(wid, None)
+        if item is None:
+            return False
+        w, task = item
+        task.cancel()
+        self.audit.append("watch", id=w.id, watch=w.kind, state="stopped")
+        self._bg = asyncio.create_task(
+            self.hub.emit(WatchState(id=w.id, kind=w.kind, label=w.label, state="stopped"))
+        )
+        return True
+
+    async def list_watches(self, lang: Lang) -> None:
+        labels = [w.label for w, _ in self.watches.values()]
+        if not labels:
+            text = "இப்போ எதுவும் பார்க்கல." if lang == "ta" else "I'm not watching anything right now."
+        else:
+            text = (
+                ("பார்த்துட்டு இருக்கேன்: " if lang == "ta" else "I'm watching: ")
+                + "; ".join(labels)
+                + "."
+            )
+        await self._say_turn(text, lang)
 
     async def tidy_turn(self, where: str, text: str, lang: Lang) -> None:
         """Sort Desktop / Downloads: plan → one yes → the normal file tools (undoable)."""

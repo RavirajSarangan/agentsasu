@@ -28,6 +28,8 @@ export type AgentState = {
   meeting: { seconds: number; lines: number; caption: string } | null;
   /** Bumps on every Amma-mode care event so the Care card refetches. */
   careAt: number;
+  /** Things Sasu is watching (Watch & tell), by id. */
+  watches: Record<string, { kind: string; label: string }>;
   /** Lost-Mac siren is sounding. */
   siren: boolean;
   /** Today's festival id (robot dresses up), or null. */
@@ -53,6 +55,7 @@ export const agentStore = new Store<AgentState>({
   translating: false,
   meeting: null,
   careAt: 0,
+  watches: {},
   siren: false,
   festival: null,
   privacy: null,
@@ -123,6 +126,12 @@ export function applyEvent(event: CoreEvent) {
     siren: event.type === "alarm" && event.kind === "siren" ? true : event.type === "unlocked" ? false : s.siren,
     festival: event.type === "fun" && event.kind === "festival" ? event.detail : s.festival,
     careAt: event.type === "care" ? Date.now() : s.careAt,
+    watches:
+      event.type === "watch"
+        ? event.state === "started"
+          ? { ...s.watches, [event.id]: { kind: event.kind, label: event.label } }
+          : Object.fromEntries(Object.entries(s.watches).filter(([id]) => id !== event.id))
+        : s.watches,
     privacy: event.type === "privacy" ? event : s.privacy,
     log: [{ at: Date.now(), event }, ...s.log].slice(0, LOG_LIMIT),
   }));

@@ -206,6 +206,14 @@ def create_app(
         audit.append("care", action="delete", removed=ok)
         return {"ok": ok}
 
+    @app.get("/api/watch", dependencies=[Depends(require_token)])
+    async def list_watch() -> list[dict[str, str]]:
+        return [{"id": w.id, "kind": w.kind, "label": w.label} for w, _ in core.watches.values()]
+
+    @app.delete("/api/watch/{wid}", dependencies=[Depends(require_token)])
+    async def stop_watch(wid: str) -> dict[str, bool]:
+        return {"ok": core.cancel_watch(wid)}
+
     @app.get("/api/skills", dependencies=[Depends(require_token)])
     async def skills() -> list[dict[str, Any]]:
         return [{"name": n, "steps": len(core.skills.get(n) or [])} for n in core.skills.names()]

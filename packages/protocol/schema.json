@@ -1017,6 +1017,53 @@
         ],
         "title": "Wake",
         "type": "object"
+      },
+      "WatchState": {
+        "description": "Watch & tell: something Sasu is keeping an eye on.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "download",
+              "battery",
+              "page",
+              "file",
+              "command"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "started",
+              "fired",
+              "stopped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "type": {
+            "const": "watch",
+            "default": "watch",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "state"
+        ],
+        "title": "WatchState",
+        "type": "object"
       }
     },
     "discriminator": {
@@ -1058,7 +1105,8 @@
         "undone": "#/$defs/Undone",
         "unlocked": "#/$defs/Unlocked",
         "voice_status": "#/$defs/VoiceStatus",
-        "wake": "#/$defs/Wake"
+        "wake": "#/$defs/Wake",
+        "watch": "#/$defs/WatchState"
       },
       "propertyName": "type"
     },
@@ -1176,6 +1224,9 @@
       },
       {
         "$ref": "#/$defs/Care"
+      },
+      {
+        "$ref": "#/$defs/WatchState"
       }
     ]
   },

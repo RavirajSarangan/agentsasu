@@ -96,6 +96,7 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
     case "caption":
     case "meeting":
     case "care":
+    case "watch":
       return { ...view };
     case "idle":
       return { ...next, state: "idle", caption: "", activeTool: null };

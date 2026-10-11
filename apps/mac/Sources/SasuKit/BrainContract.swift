@@ -498,6 +498,9 @@ let brainContractJSON = #"""
      "properties": {
       "command": {
        "type": "string"
+      },
+      "minutes": {
+       "type": "number"
       }
      },
      "required": [

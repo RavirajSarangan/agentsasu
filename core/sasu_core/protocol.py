@@ -219,6 +219,16 @@ class MeetingState(BaseModel):
     lines: int = 0
 
 
+class WatchState(BaseModel):
+    """Watch & tell: something Sasu is keeping an eye on."""
+
+    type: Literal["watch"] = "watch"
+    id: str
+    kind: Literal["download", "battery", "page", "file", "command"]
+    label: str
+    state: Literal["started", "fired", "stopped"]
+
+
 class Care(BaseModel):
     """Amma mode: a medicine reminder was asked, confirmed or missed."""
 
@@ -320,7 +330,8 @@ CoreEvent = Annotated[
     | SnapRequest
     | Caption
     | MeetingState
-    | Care,
+    | Care
+    | WatchState,
     Field(discriminator="type"),
 ]
 

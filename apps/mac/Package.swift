@@ -1,6 +1,10 @@
 // swift-tools-version:5.10
 // Sasu's native core, built step by step to replace the Python core (see README).
+import Foundation
 import PackageDescription
+
+// The speech engine (sherpa-onnx) is fetched by scripts/fetch-sherpa.sh into vendor/.
+let vendorLib = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("vendor/sherpa-onnx/lib").path
 
 let package = Package(
     name: "SasuMac",
@@ -10,7 +14,16 @@ let package = Package(
         .library(name: "SasuKit", targets: ["SasuKit"]),
     ],
     targets: [
-        .target(name: "SasuKit", linkerSettings: [.linkedLibrary("sqlite3")]),
+        .target(name: "CSherpaOnnx"),
+        .target(
+            name: "SasuKit",
+            dependencies: ["CSherpaOnnx"],
+            linkerSettings: [
+                .linkedLibrary("sqlite3"),
+                .linkedLibrary("sherpa-onnx-c-api"),
+                .unsafeFlags(["-L", vendorLib, "-Xlinker", "-rpath", "-Xlinker", vendorLib]),
+            ]
+        ),
         .executableTarget(name: "sasu-core-swift", dependencies: ["SasuKit"]),
     ]
 )

@@ -15,6 +15,7 @@ protocol and file formats as the Python core, and is checked against it by
 | 5 | Optional: SwiftUI shell, App Intents / Shortcuts | |
 
 ```bash
+scripts/fetch-sherpa.sh          # speech engine, pinned to the Python core's build
 swift build -c release            # needs only the Xcode command-line tools
 .build/release/sasu-core-swift --verify-audit ~/Library/Application\ Support/dev.sasu.desktop/audit.sqlite
 cd ../../core && uv run pytest tests/test_swift_core.py

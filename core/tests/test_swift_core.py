@@ -34,6 +34,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="session")
 def swift_bin() -> Path:
+    subprocess.run([str(PKG / "scripts" / "fetch-sherpa.sh")], check=True)  # speech engine (pinned)
     r = subprocess.run(
         ["swift", "build", "-c", "release", "--package-path", str(PKG)],
         capture_output=True,
@@ -711,3 +712,163 @@ def test_file_tools_and_undo_match_python(swift_bin: Path, tmp_path: Path, appro
         assert "Downloads/PDFs/a.pdf" in py[1] and py[3] == sorted(
             ["Downloads", "Downloads/a.pdf", "Downloads/b.pdf", "Downloads/keep.txt"]
         )
+
+
+# ── phase 3a: voice engine must match Python on the same audio ───────────────
+
+MODELS = Path.home() / "Library" / "Application Support" / "dev.sasu.desktop" / "models"
+needs_models = pytest.mark.skipif(
+    not (MODELS / "turbo-encoder.int8.onnx").exists() or shutil.which("say") is None,
+    reason="voice models or macOS voices not installed",
+)
+
+WAKE_CORPUS = [
+    "Hey Sasu", "hey saasu open safari", "Hi, Sashu.", "hey sa su", "Hesasul", "Heis azul.", "Sauce", "சாச",
+    "சாசு பாட்டு போடு", "சாசி ஒரு பாட", "சாசனம் படி", "I said so", "sausage rolls for the season", "Hey Siri",
+    "Downloads lair iroo kira pdf alum list panu.", "He Sasuo, opens a fiery and set the volume to 30.",
+]  # fmt: skip
+
+
+def test_wake_and_stop_match_python(swift_bin: Path) -> None:
+    from sasu_core.voice.wake import find_wake, is_stop
+
+    names = [(), ("Chitti",), ("சிட்டி",), ("Kutty", "Chitti")]
+    queries = [
+        {"fn": "wake", "text": t, "names": list(n)}
+        for t in [*WAKE_CORPUS, "hey chiti open safari", "சிட்டி பாட்டு போடு", "pretty city lights"]
+        for n in names
+    ]
+    stops = [
+        "Stop!",
+        "நிறுத்து",
+        "don't stop the music playing in the kitchen please",
+        "wait",
+        "pothum da",
+    ]
+    got = swift_eval(swift_bin, queries + [{"fn": "stop", "text": t} for t in stops])
+    want = [
+        dict(zip(("heard", "rest"), find_wake(q["text"], tuple(q["names"])), strict=True))
+        for q in queries
+    ] + [is_stop(t) for t in stops]
+    assert [(q, g, w) for q, g, w in zip(queries + stops, got, want, strict=False) if g != w] == []
+
+
+CLIPS = [
+    ("Rishi", "Hey Sasu, open Safari and set the volume to thirty."),
+    ("Rishi", "Hey Sasu."),
+    ("Tara", "Play some music."),
+    ("Vani", "சாசு, பாட்டு போடு."),
+    ("Vani", "சத்தம் குறை."),
+    ("Rishi", "Downloads la irukura PDF ellam list pannu."),
+]
+
+
+@pytest.fixture(scope="module")
+def clips(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
+    d = tmp_path_factory.mktemp("clips")
+    out = []
+    for i, (voice, text) in enumerate(CLIPS):
+        aiff, wav = d / f"c{i}.aiff", d / f"c{i}.wav"
+        subprocess.run(["say", "-v", voice, "-o", str(aiff), text], check=True)
+        subprocess.run(
+            ["afconvert", "-f", "WAVE", "-d", "LEI16@16000", "-c", "1", str(aiff), str(wav)],
+            check=True,
+        )
+        out.append(wav)
+    return out
+
+
+def load_wav(p: Path) -> Any:
+    import wave
+
+    import numpy as np
+
+    with wave.open(str(p)) as w:
+        return np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
+
+
+@needs_models
+def test_transcripts_match_python(swift_bin: Path, clips: list[Path]) -> None:
+    import sherpa_onnx as so
+
+    def rec(model: str, lang: str) -> Any:
+        m = str(MODELS)
+        return so.OfflineRecognizer.from_whisper(
+            encoder=f"{m}/{model}-encoder.int8.onnx",
+            decoder=f"{m}/{model}-decoder.int8.onnx",
+            tokens=f"{m}/{model}-tokens.txt",
+            language=lang,
+            num_threads=4,
+        )
+
+    combos = [("tiny", ""), ("turbo", ""), ("turbo", "ta"), ("tiny", "ta")]
+    queries = [
+        {"fn": "transcribe", "wav": str(c), "model": m, "lang": lang, "models": str(MODELS)}
+        for m, lang in combos
+        for c in clips
+    ]
+    got = swift_eval(swift_bin, queries)
+    want = []
+    for m, lang in combos:
+        r = rec(m, lang)
+        for c in clips:
+            s = r.create_stream()
+            s.accept_waveform(16000, load_wav(c))
+            r.decode_stream(s)
+            want.append(
+                {
+                    "text": s.result.text.strip(),
+                    "lang": str(getattr(s.result, "lang", "")).strip("<|>").lower(),
+                }
+            )
+    diffs = [
+        (q["model"], q["lang"], Path(q["wav"]).name, g, w)
+        for q, g, w in zip(queries, got, want, strict=True)
+        if g != w
+    ]
+    assert diffs == []
+
+
+@needs_models
+def test_vad_and_voiceprints_match_python(swift_bin: Path, clips: list[Path]) -> None:
+    import numpy as np
+    import sherpa_onnx as so
+
+    from sasu_core.security.voiceprint import cosine
+
+    cfg = so.VadModelConfig()
+    cfg.silero_vad.model = str(MODELS / "silero_vad.onnx")
+    cfg.silero_vad.threshold = 0.5
+    cfg.silero_vad.min_silence_duration = 0.4
+    cfg.silero_vad.min_speech_duration = 0.25
+    cfg.silero_vad.max_speech_duration = 15
+    cfg.sample_rate = 16000
+    py_lengths = []
+    for c in clips:
+        vad = so.VoiceActivityDetector(cfg, buffer_size_in_seconds=30)
+        x = np.concatenate([np.zeros(9600, np.float32), load_wav(c), np.zeros(32000, np.float32)])
+        segs = []
+        for i in range(0, len(x) - 511, 512):
+            vad.accept_waveform(x[i : i + 512])
+            while not vad.empty():
+                segs.append(len(vad.front.samples))
+                vad.pop()
+        py_lengths.append(segs)
+    sw = swift_eval(
+        swift_bin, [{"fn": "segments", "wav": str(c), "models": str(MODELS)} for c in clips]
+    )
+    assert [s["lengths"] for s in sw] == py_lengths
+
+    ex = so.SpeakerEmbeddingExtractor(
+        so.SpeakerEmbeddingExtractorConfig(
+            model=str(MODELS / "wespeaker_en_voxceleb_resnet34.onnx"), num_threads=2
+        )
+    )
+    sw_emb = swift_eval(
+        swift_bin, [{"fn": "embed", "wav": str(c), "models": str(MODELS)} for c in clips]
+    )
+    for c, e in zip(clips, sw_emb, strict=True):
+        s = ex.create_stream()
+        s.accept_waveform(sample_rate=16000, waveform=load_wav(c))
+        s.input_finished()
+        assert cosine(list(ex.compute(s)), e) > 0.999, c.name

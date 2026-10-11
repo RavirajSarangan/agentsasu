@@ -43,6 +43,36 @@ if args.contains("--eval") {
             } else {
                 print("null")
             }
+        case "wake":
+            let r = Wake.find(q["text"] as? String ?? "", names: q["names"] as? [String] ?? [])
+            print(PyJSON.compact(["heard": r.0, "rest": r.1]))
+        case "stop":
+            print(Wake.isStop(q["text"] as? String ?? "") ? "true" : "false")
+        case "transcribe", "segments", "embed":
+            let dir = q["models"] as? String ?? ""
+            guard let wav = readWav(q["wav"] as? String ?? "") else { print("null"); continue }
+            switch q["fn"] as? String {
+            case "transcribe":
+                let key = "\(q["model"] ?? "tiny"):\(q["lang"] ?? "")"
+                let rec = VoiceEval.recognizers[key] ?? Recognizer(modelsDir: dir, model: q["model"] as? String ?? "tiny", language: q["lang"] as? String ?? "", threads: 4)
+                VoiceEval.recognizers[key] = rec
+                let r = rec?.decode(wav) ?? ("", "")
+                print(PyJSON.compact(["text": r.0, "lang": r.1]))
+            case "segments":
+                guard let vad = VAD(modelsDir: dir) else { print("null"); continue }
+                let padded = [Float](repeating: 0, count: 9600) + wav + [Float](repeating: 0, count: 32000)
+                var segs: [Int] = []
+                var i = 0
+                while i + vad.window <= padded.count {
+                    vad.accept(Array(padded[i..<(i + vad.window)]))
+                    segs += vad.popSegments().map(\.count)
+                    i += vad.window
+                }
+                print(PyJSON.compact(["lengths": segs]))
+            default:
+                VoiceEval.embedder = VoiceEval.embedder ?? SpeakerEmbedder(modelsDir: dir)
+                print(VoiceEval.embedder?.embed(wav).map { PyJSON.dumps($0.map { Double($0) }) } ?? "null")
+            }
         case "call", "undo":
             // One executor call (or an undo) in a sandbox data dir, with a scripted yes/no.
             let dir = q["data_dir"] as? String ?? NSTemporaryDirectory()
@@ -119,4 +149,10 @@ final class EvalBox: NSLock, @unchecked Sendable {
     var prompts: [[String]] = []
     var events: [String] = []
     var out: [String: Any?] = [:]
+}
+
+/// Models kept loaded across --eval lines (they take seconds to load).
+enum VoiceEval {
+    nonisolated(unsafe) static var recognizers: [String: Recognizer?] = [:]
+    nonisolated(unsafe) static var embedder: SpeakerEmbedder?
 }

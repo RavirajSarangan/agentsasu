@@ -48,31 +48,29 @@ if args.contains("--eval") {
             let dir = q["data_dir"] as? String ?? NSTemporaryDirectory()
             let log = AuditLog.shared(dir)
             let journal = try! UndoJournal(path: dir + "/undo.sqlite")
-            var prompts: [[String]] = []
-            var events: [String] = []
+            let box = EvalBox()
             let answer = q["approve"] as? Bool ?? false
             let runner = FakeRunner(config: ["log": dir + "/calls.jsonl", "default": q["default"] as? String ?? ""])
             let ex = Executor(
-                emit: { events.append(($0["type"] as? String) ?? "") },
-                approve: { prompt, risk, _, _ in prompts.append([prompt, risk.rawValue]); return answer },
+                emit: { e in box.withLock { box.events.append((e["type"] as? String) ?? "") } },
+                approve: { prompt, risk, _, _ in box.withLock { box.prompts.append([prompt, risk.rawValue]) }; return answer },
                 audit: log, journal: journal, holding: dir + "/bin", runner: runner,
                 canaries: Canaries(stateFile: dir + "/canaries.json"))
             let done = DispatchSemaphore(value: 0)
-            var out: [String: Any?] = [:]
             Task {
                 if q["fn"] as? String == "undo" {
                     let (ok, items) = await ex.undo(turn: q["turn"] as? String ?? "")
-                    out = ["ok": ok, "items": items]
+                    box.withLock { box.out = ["ok": ok, "items": items] }
                 } else {
                     let turn = Turn(id: q["turn"] as? String ?? Turn.newID(), lang: "en", role: q["role"] as? String ?? "owner")
                     turn.untrustedSeen = q["untrusted_seen"] as? Bool ?? false
                     let r = await ex.call(q["tool"] as? String ?? "", a, turn)
-                    out = ["result": r, "approvals": prompts, "events": events]
+                    box.withLock { box.out = ["result": r, "approvals": box.prompts, "events": box.events] }
                 }
                 done.signal()
             }
             done.wait()
-            print(PyJSON.compact(out))
+            print(PyJSON.compact(box.out))
         default: print("null")
         }
     }
@@ -115,3 +113,10 @@ Thread.detachNewThread {
     exit(0)
 }
 dispatchMain()
+
+/// Shared state for one --eval executor call (safe across the background task).
+final class EvalBox: NSLock, @unchecked Sendable {
+    var prompts: [[String]] = []
+    var events: [String] = []
+    var out: [String: Any?] = [:]
+}

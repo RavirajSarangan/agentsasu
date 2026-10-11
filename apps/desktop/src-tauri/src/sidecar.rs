@@ -4,8 +4,8 @@
 //! or env. Later lines are control messages (lock/unlock, Touch ID results, kill
 //! switch). The core prints `{"port": N}` first on stdout and exits when stdin closes.
 //!
-//! Dev: `uv run --project <repo>/core python -m sasu_core`. Phase 8 swaps in the
-//! PyInstaller binary bundled as a Tauri sidecar.
+//! Dev: `uv run --project <repo>/core python -m sasu_core`. Release: the PyInstaller
+//! folder bundled at Contents/Resources/sasu-core (see core/build_sidecar.py).
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -119,7 +119,7 @@ impl Core {
 
     /// Spawns the core and blocks until it exits.
     fn run_once(&self, app: &AppHandle, secrets: &CoreSecrets) -> std::io::Result<()> {
-        let mut child = core_command()?
+        let mut child = core_command(app)?
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
@@ -195,7 +195,22 @@ fn find_uv() -> PathBuf {
     candidates.into_iter().map(PathBuf::from).find(|p| p.exists()).unwrap_or_else(|| PathBuf::from("uv"))
 }
 
-fn core_command() -> std::io::Result<Command> {
+/// Release builds run the bundled core (PyInstaller folder in Contents/Resources);
+/// dev builds run the Python project with uv.
+fn core_command(app: &AppHandle) -> std::io::Result<Command> {
+    if !cfg!(debug_assertions) {
+        use tauri::Manager;
+        let bin = app
+            .path()
+            .resource_dir()
+            .map_err(|e| std::io::Error::other(e.to_string()))?
+            .join("sasu-core")
+            .join("sasu-core");
+        let mut cmd = Command::new(&bin);
+        cmd.arg("--stdin-config");
+        return Ok(cmd);
+    }
+    let _ = app;
     let dir = core_dir()
         .canonicalize()
         .map_err(|e| std::io::Error::new(e.kind(), format!("core dir {:?}: {e}", core_dir())))?;

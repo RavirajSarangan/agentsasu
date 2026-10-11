@@ -59,10 +59,21 @@ pub fn remove(data_dir: &Path, provider: &str) -> Result<(), String> {
 }
 
 fn get(data_dir: &Path, provider: &str) -> Option<String> {
+    let dev = || read_dev(data_dir).get(provider).and_then(Value::as_str).map(str::to_owned);
     if cfg!(debug_assertions) || !cfg!(target_os = "macos") {
-        return read_dev(data_dir).get(provider).and_then(Value::as_str).map(str::to_owned);
+        return dev();
     }
-    keychain::get(provider)
+    if let Some(k) = keychain::get(provider) {
+        return Some(k);
+    }
+    // First release launch after a dev build: move the key into the Keychain.
+    let k = dev()?;
+    if keychain::set(provider, &k).is_ok() {
+        let mut map = read_dev(data_dir);
+        map.remove(provider);
+        let _ = if map.is_empty() { std::fs::remove_file(dev_file(data_dir)) } else { write_dev(data_dir, &map) };
+    }
+    Some(k)
 }
 
 /// Which providers have a key (never the keys themselves).

@@ -1,54 +1,46 @@
-// Renders the 660×400 DMG window background (captured to assets/ by scripts/render-assets.py).
-// Finder draws the app icon at (180, 220) and the Applications link at (480, 220).
-import { themes } from "@sasu/brand";
 import { createRoot } from "react-dom/client";
-import { RobotHead } from "robot-heads";
+import { Robot } from "./Robot";
 import "./styles.css";
 
-function Dmg() {
-  const t = themes.midnight;
+// 660×400 DMG window background. Finder draws the Sasu icon at (180, 220) and the
+// Applications folder at (480, 220) on top of the two pads below.
+document.documentElement.dataset.theme = "light";
+
+function Pad({ x }: { x: number }) {
   return (
     <div
-      data-theme="light"
-      style={{
-        width: 660,
-        height: 400,
-        position: "relative",
-        overflow: "hidden",
-        background: "radial-gradient(120% 90% at 50% 0%, #ffffff 0%, #eef1fa 55%, #e2e7f5 100%)",
-        fontFamily: "-apple-system, 'Inter Variable', sans-serif",
-        color: "#0b0d14",
-      }}
-    >
-      <div style={{ position: "absolute", left: 24, top: 22, display: "flex", alignItems: "center", gap: 10 }}>
-        <RobotHead size={34} state="happy" color={t.color} trimColor={t.trimColor} screenColor={t.screen.en} interactive={false} antenna={false} floorShadow={false} paused />
-        <span style={{ fontWeight: 600, fontSize: 17, letterSpacing: "-0.02em" }}>Sasu</span>
-      </div>
-      <p style={{ position: "absolute", top: 76, width: "100%", textAlign: "center", fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", margin: 0 }}>
-        Drag Sasu into Applications
-      </p>
-      <p style={{ position: "absolute", top: 108, width: "100%", textAlign: "center", fontSize: 13, color: "#5b6070", margin: 0 }}>
-        Then open it and say “Hey Sasu” · <span lang="ta">வணக்கம்!</span>
-      </p>
-      {/* soft spots under the two Finder icons */}
-      {[180, 480].map((x) => (
-        <div key={x} style={{ position: "absolute", left: x - 70, top: 220 - 70, width: 140, height: 140, borderRadius: "50%", background: "radial-gradient(closest-side, rgba(58,95,208,0.16), transparent)" }} />
-      ))}
-      <svg width="660" height="400" style={{ position: "absolute", inset: 0 }} aria-hidden>
-        <defs>
-          <linearGradient id="g" x1="0" x2="1">
-            <stop offset="0" stopColor="#3a5fd0" stopOpacity="0.25" />
-            <stop offset="1" stopColor="#7c5cff" />
-          </linearGradient>
-        </defs>
-        <path d="M262 220 C 320 196, 360 196, 404 216" fill="none" stroke="url(#g)" strokeWidth="4" strokeLinecap="round" strokeDasharray="2 10" />
-        <path d="M394 204 L 410 218 L 392 230" fill="none" stroke="#7c5cff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <p style={{ position: "absolute", bottom: 18, width: "100%", textAlign: "center", fontSize: 11, color: "#9aa0ad", margin: 0 }}>
-        Open source · MIT · Your voice never leaves this Mac
-      </p>
-    </div>
+      className="absolute rounded-[28px] bg-white shadow-[0_1px_2px_rgba(20,26,51,0.06),0_18px_40px_-18px_rgba(20,26,51,0.35),inset_0_0_0_1px_rgba(20,26,51,0.06)]"
+      style={{ left: x - 66, top: 220 - 66, width: 132, height: 132 }}
+    />
   );
 }
 
-createRoot(document.getElementById("root")!).render(<Dmg />);
+createRoot(document.getElementById("root")!).render(
+  <div className="dots relative h-[400px] w-[660px] overflow-hidden bg-[var(--bg)]">
+    <div className="absolute left-[28px] top-[24px] flex items-center gap-2.5">
+      <Robot state="happy" size={30} halo={false} interactive={false} />
+      <span className="text-[19px] font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+        Sasu
+      </span>
+    </div>
+    <p className="absolute inset-x-0 top-[60px] text-center text-[22px] font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+      Drag Sasu into Applications
+    </p>
+    <p className="absolute inset-x-0 top-[94px] text-center text-[13px] text-[var(--muted)]">
+      Then open it and say “Hey Sasu”. <span lang="ta">வணக்கம்!</span>
+    </p>
+
+    <Pad x={180} />
+    <Pad x={480} />
+
+    {/* dotted path between the pads, like a kolam line, ending in an arrow */}
+    <svg className="absolute" style={{ left: 252, top: 182, width: 156, height: 60 }} viewBox="0 0 156 60" fill="none">
+      <path d="M4 40 C 40 4, 112 4, 146 34" stroke="#2b49a3" strokeOpacity="0.55" strokeWidth="3.5" strokeLinecap="round" strokeDasharray="0.1 10" />
+      <path d="M134 22 L148 36 L130 42" stroke="#2b49a3" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+
+    <p className="absolute inset-x-0 bottom-[22px] text-center text-[11.5px] text-[var(--faint)]">
+      First launch: System Settings → Privacy & Security → Open Anyway
+    </p>
+  </div>,
+);

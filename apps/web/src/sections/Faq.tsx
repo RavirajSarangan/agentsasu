@@ -8,6 +8,10 @@ const QA = [
   ["Can someone else use it on my Mac?", "Only as a guest. Other voices can ask the time or play music. Everything else needs your voice, and risky steps need Touch ID."],
   ["What if it does something wrong?", "Say “Sasu, undo” or press ⌘⌥Z and it reverses what it just did. ⌘⌥Esc stops everything instantly."],
   ["Which Macs?", "Apple Silicon Macs with macOS 13 Ventura or newer."],
+  [
+    "macOS says Sasu “can't be opened”?",
+    "Sasu isn't notarized by Apple yet. Open System Settings → Privacy & Security, scroll down and click “Open Anyway” next to Sasu. You only need to do this once.",
+  ],
 ];
 
 export function Faq() {

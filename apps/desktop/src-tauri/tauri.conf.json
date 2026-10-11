@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Sasu",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "identifier": "dev.sasu.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -83,7 +83,11 @@
           "y": 220
         }
       },
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "signingIdentity": "-"
+    },
+    "resources": {
+      "resources/sasu-core/": "sasu-core/"
     }
   }
 }

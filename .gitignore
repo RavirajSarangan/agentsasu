@@ -15,3 +15,7 @@ core/build/
 core/dist/
 *.log
 .env
+
+# Built core bundled into the app (core/build_sidecar.py)
+apps/desktop/src-tauri/resources/sasu-core/
+core/build/

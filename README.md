@@ -15,7 +15,7 @@ in English, தமிழ், or Tanglish. It only listens to you, and anything i
 [![CI](https://img.shields.io/github/actions/workflow/status/RavirajSarangan/agentsasu/ci.yml?style=flat-square&label=tests)](https://github.com/RavirajSarangan/agentsasu/actions)
 [![Stars](https://img.shields.io/github/stars/RavirajSarangan/agentsasu?style=flat-square&color=f5a524)](https://github.com/RavirajSarangan/agentsasu/stargazers)
 
-[**Website**](https://sasu-web.vercel.app) · [Compare](https://sasu-web.vercel.app/compare.html) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+[**Download**](https://github.com/RavirajSarangan/agentsasu/releases/latest/download/Sasu-mac.dmg) · [**Website**](https://sasu-web.vercel.app) · [Compare](https://sasu-web.vercel.app/compare.html) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 
 <img src="docs/images/demo.gif" alt="Sasu flying to Safari to search flights, sorting PDFs in Finder with a plan, answering in Tamil, and undoing it" width="88%">
 
@@ -146,7 +146,17 @@ flowchart LR
 
 ## Install
 
-> The signed Mac download is coming soon. For now, run it from source.
+### Download
+
+**[⬇ Download Sasu for Mac](https://github.com/RavirajSarangan/agentsasu/releases/latest/download/Sasu-mac.dmg)** (Apple Silicon, macOS 13+)
+
+1. Open the DMG and drag **Sasu** to **Applications**.
+2. Sasu isn't notarized by Apple yet, so the first time macOS says it “can't be opened”.
+   Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to Sasu.
+   (On older macOS: right-click Sasu → Open.) You only do this once.
+3. Allow the microphone when asked.
+
+### From source
 
 ```bash
 git clone https://github.com/RavirajSarangan/agentsasu && cd agentsasu
@@ -186,7 +196,8 @@ docs/           Architecture and images
 - [x] Meeting notes (on-device captions → summary in Notes)
 - [x] SOS phrase and lost-Mac alarm
 - [x] Clipboard memory, window layouts by voice, voice diary
-- [ ] Native Swift core (smaller, faster app) and a signed download
+- [x] Mac download (DMG)
+- [ ] Notarized download, native Swift core (smaller, faster app)
 
 ## Contributing
 

@@ -21,14 +21,22 @@ pub fn random_hex32() -> String {
 /// compile, which would make the Keychain prompt each time, so they keep a 0600 file
 /// in the app data dir instead.
 pub fn vault_key(data_dir: &Path) -> String {
+    let dev_file = data_dir.join(".vault-key-dev");
     if cfg!(debug_assertions) || !cfg!(target_os = "macos") {
-        return file_key(&data_dir.join(".vault-key-dev"));
+        return file_key(&dev_file);
     }
-    keychain_key()
+    keychain_key(&dev_file)
+}
+
+/// A key a dev build left in a file (so the release app can still read your data).
+fn dev_key(path: &Path) -> Option<String> {
+    let key = std::fs::read_to_string(path).ok()?;
+    let key = key.trim();
+    (key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit())).then(|| key.to_owned())
 }
 
 #[cfg(target_os = "macos")]
-fn keychain_key() -> String {
+fn keychain_key(dev_file: &Path) -> String {
     use security_framework::passwords::{get_generic_password, set_generic_password};
     if let Ok(bytes) = get_generic_password(SERVICE, VAULT_ACCOUNT) {
         if let Ok(key) = String::from_utf8(bytes) {
@@ -37,15 +45,21 @@ fn keychain_key() -> String {
             }
         }
     }
-    let key = random_hex32();
-    if let Err(e) = set_generic_password(SERVICE, VAULT_ACCOUNT, key.as_bytes()) {
-        eprintln!("[sasu] keychain write failed: {e}");
+    // First release launch after using a dev build: move the key into the Keychain.
+    let migrated = dev_key(dev_file);
+    let key = migrated.clone().unwrap_or_else(random_hex32);
+    match set_generic_password(SERVICE, VAULT_ACCOUNT, key.as_bytes()) {
+        Ok(()) if migrated.is_some() => {
+            let _ = std::fs::remove_file(dev_file);
+        }
+        Ok(()) => {}
+        Err(e) => eprintln!("[sasu] keychain write failed: {e}"),
     }
     key
 }
 
 #[cfg(not(target_os = "macos"))]
-fn keychain_key() -> String {
+fn keychain_key(_dev_file: &Path) -> String {
     random_hex32()
 }
 

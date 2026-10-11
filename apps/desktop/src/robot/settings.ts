@@ -44,6 +44,16 @@ export type RobotSettings = {
   canaries: boolean;
   /** Stretch / water reminder every N minutes (0 = off). */
   breakMinutes: number;
+  /** What you call the robot (comma-separated extra names, e.g. "Chitti, சிட்டி"). */
+  robotName: string;
+  /** City for the morning briefing weather. */
+  city: string;
+  /** Spoken heads-ups: low battery, meeting in 5 minutes. */
+  nudges: boolean;
+  /** Festive greetings on Pongal, Deepavali, Tamil New Year, Christmas. */
+  festivals: boolean;
+  /** Take a camera photo when a stranger or a trap file triggers (opt-in). */
+  intruderPhoto: boolean;
   /** First-run setup finished. */
   onboarded: boolean;
   uiLang: "en" | "ta";
@@ -83,6 +93,11 @@ const defaults: RobotSettings = {
   awayMinutes: 0,
   canaries: true,
   breakMinutes: 0,
+  robotName: "",
+  city: "",
+  nudges: false,
+  festivals: true,
+  intruderPhoto: false,
   onboarded: false,
   uiLang: "en",
 };
@@ -132,5 +147,10 @@ export function coreSettings(s: RobotSettings) {
     fun_replies: s.funReplies,
     away_minutes: s.awayMinutes,
     canaries: s.canaries,
+    robot_name: s.robotName,
+    city: s.city,
+    nudges: s.nudges,
+    festivals: s.festivals,
+    intruder_photo: s.intruderPhoto,
   };
 }

@@ -1,80 +1,195 @@
-# SASU
+<div align="center">
 
-Open-source voice desktop agent for macOS. A small robot floats on your desktop; say
-**"Hey Sasu"** and a command in English or Tamil, and it does it on your Mac.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.png">
+  <img alt="Sasu — Talk to your Mac. உங்க Mac-கிட்ட பேசுங்க." src="docs/images/banner-light.png" width="100%">
+</picture>
 
-> **v0.3** — hands-free voice in English, தமிழ் and Tanglish ("Hey Sasu" → instant local
-> commands in ~1.5 s, AI for everything else), girl/boy voices, undo for every action,
-> owner-only voiceprint + guest mode, trap files, leak guard, panic word, away lock,
-> intruder log, music dancing and more. Site: <https://sasu-web.vercel.app>
+**A little robot that lives on your Mac and does things when you talk to it,
+in English, தமிழ், or Tanglish. It only listens to you, and anything it does can be undone.**
 
-## Requirements
-- macOS 13+, Apple Silicon
-- Node 22+ (`nvm use` reads `.nvmrc`), pnpm 10
-- Rust (stable), [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 itself)
+[![MIT License](https://img.shields.io/badge/license-MIT-2b49a3?style=flat-square)](LICENSE)
+[![macOS 13+](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-141a33?style=flat-square&logo=apple)](#install)
+[![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776ab?style=flat-square&logo=python&logoColor=white)](core)
+[![CI](https://img.shields.io/github/actions/workflow/status/RavirajSarangan/agentsasu/ci.yml?style=flat-square&label=tests)](https://github.com/RavirajSarangan/agentsasu/actions)
+[![Stars](https://img.shields.io/github/stars/RavirajSarangan/agentsasu?style=flat-square&color=f5a524)](https://github.com/RavirajSarangan/agentsasu/stargazers)
 
-## Run
+[**Website**](https://sasu-web.vercel.app) · [Compare](https://sasu-web.vercel.app/compare.html) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+
+<img src="docs/images/demo.gif" alt="Sasu flying to Safari to search flights, sorting PDFs in Finder with a plan, answering in Tamil, and undoing it" width="88%">
+
+</div>
+
+---
+
+## Just say “Hey Sasu”
+
+No buttons, no commands to learn. Speak the way you'd talk to a friend.
+
+| You say | Language | Sasu does |
+| --- | --- | --- |
+| “Hey Sasu, open Safari and look up flights to Chennai” | English | Opens Safari and searches |
+| “Downloads la irukura PDF ellam oru folder-la podu” | Tanglish | Shows the plan, then moves the PDFs |
+| “சாசு, பாட்டு போடு” | தமிழ் | Plays music, answers in Tamil |
+| “Good morning” | English | Weather, today's meetings and reminders |
+| “Focus 25 minutes” | English | Closes distractions, then restores them |
+| “இது என்ன?” | தமிழ் | Looks at your screen and explains it in Tamil |
+| “Translate mode” | English | You speak Tamil, Sasu says it in English, and back |
+| “Remember amma's birthday is June 3” | English | Saves it, encrypted, for later |
+| “Sasu, undo” | any | Puts back whatever it just changed |
+
+Common requests (music, volume, opening apps, time, battery, dark mode) run **on your Mac in about 1.5 s**, without any AI service.
+Everything else goes to the AI you choose: free **Gemini** or **Groq**, **Claude**, or **Ollama** fully offline.
+
+## Only on Sasu
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**↩️ Undo for everything**<br>
+Every change is written down with how to reverse it. Files go back, settings return, apps close.
+Say “undo” or press <kbd>⌘</kbd><kbd>⌥</kbd><kbd>Z</kbd>.
+
+**📋 Plan first**<br>
+Anything with several steps shows the plan and waits for your “go”.
+
+**🗣️ Speaks your mix**<br>
+Answers in the language you used, switching between Tamil (Vani) and English (Tara) voices mid-sentence.
+
+**👨‍👩‍👧 Family voices**<br>
+Enrol family and kids. Kids get music, YouTube and jokes; only you can do risky things.
+
+</td>
+<td width="50%" valign="top">
+
+**🧭 The robot goes where it works**<br>
+It glides over to the app it's using, so you see what it touches.
+
+**🌅 Briefings and focus**<br>
+“Good morning” gives you weather, meetings and reminders. “Focus 25” closes distractions and brings them back after.
+
+**🔤 Translator and screen reader**<br>
+Live Tamil ⇄ English translation, “what's on my screen?”, “read this to me”, and Tamil voice-typing into any app.
+
+**🎵 Personality**<br>
+Dances to Spotify, sleepy at night, festival greetings on Pongal and Deepavali, four sound packs (one in raga Mayamalavagowla).
+
+</td>
+</tr>
+</table>
+
+<p align="center">
+  <img src="docs/images/panel-home.png" width="49%" alt="Home: conversation timeline, plan and undo">
+  <img src="docs/images/panel-settings.png" width="49%" alt="Settings: free AI brain, girl or boy voice">
+</p>
+
+## Security
+
+An assistant that can touch your whole Mac has to be hard to misuse: by people nearby, websites, other apps, and AI tricks hidden in files.
+
+| Protection | How it works |
+| --- | --- |
+| **Only your voice** | An encrypted voiceprint is checked on every command. Strangers get guest mode, or nothing. |
+| **Touch ID for risky steps** | Deleting, system changes, anything outside your home folder. Voice alone is never enough. |
+| **Trap files** | Decoy “password” files. If anything (even a tricked AI) touches them, Sasu locks and alarms. |
+| **Leak guard** | Text read from files or web pages can't be smuggled out through links or commands. |
+| **Panic word** | Say it and Sasu locks instantly, until Touch ID. |
+| **Intruder log and photo** | Every stranger attempt is logged; an optional single camera photo. |
+| **Deaf when you're away** | Locks with the screen, fast user switching, and idle time. <kbd>⌘</kbd><kbd>⌥</kbd><kbd>Esc</kbd> stops everything. |
+| **Tamper-evident log** | Every action is sealed in a hash chain; edits show up on the Security page. |
+| **Locked-down app** | Local server on 127.0.0.1 only, a secret token per launch passed over stdin, strict CSP, per-window permissions. |
+
+<p align="center"><img src="docs/images/panel-security.png" width="70%" alt="Security page"></p>
+
+### Privacy
+
+Audio, voiceprints, memories, photos and the activity log **never leave your Mac**.
+Only the text of a request (and a screenshot, if you ask about your screen) goes to the AI provider you picked,
+and the **privacy meter** shows exactly how much after every request. No accounts, no telemetry.
+Read the full [Privacy Policy](PRIVACY.md).
+
+## How it works
+
+```mermaid
+flowchart LR
+  Mic([🎙️ Mic]) --> VAD[VAD] --> Wake{“Hey Sasu”?<br/>Whisper tiny}
+  Wake -- yes --> STT[Whisper turbo<br/>Tamil + English]
+  STT --> Who{Voiceprint<br/>owner · family · kid · guest}
+  Who --> Fast{Instant<br/>command?}
+  Fast -- yes --> Exec
+  Fast -- no --> Brain[AI brain<br/>Gemini · Groq · Claude · Ollama]
+  Brain --> Exec[Executor<br/>policy → approval / Touch ID → run]
+  Exec --> Undo[(Undo journal)]
+  Exec --> Audit[(Hash-chained log)]
+  Exec --> Mac[[Apps · Files · Settings · Music]]
+  Exec --> TTS([🔊 Tara / Vani voice])
+  subgraph Desktop [Tauri app]
+    Robot[Robot overlay] --- Panel[Panel]
+  end
+  Exec -. events .-> Desktop
+```
+
+| Part | Tech |
+| --- | --- |
+| Desktop shell | Tauri 2 (Rust): windows, Touch ID, Keychain, hotkeys, haptics |
+| UI | React 19, TanStack Router/Query/Store, Tailwind 4, Motion, [robot-heads](https://github.com/fayazara/robot-heads) |
+| Core | Python 3.12, FastAPI, sherpa-onnx (VAD, Whisper, voiceprint), macOS `say` |
+| Site | Vite + React on Vercel |
+
+## Install
+
+> The signed Mac download is coming soon. For now, run it from source.
+
 ```bash
-pnpm install
-cd core && uv sync && cd ..
-
-pnpm dev                 # the app (Tauri + Vite + Python core)
-SASU_DEMO=1 pnpm dev     # same, robot cycles through scripted turns
-```
-UI only, in a browser: `pnpm core:demo` in one terminal, `pnpm dev:ui` in another, then open
-<http://localhost:1420/#/overlay> or `#/panel`.
-
-| Action | How |
-|---|---|
-| Talk | click the robot, or ⌥Space |
-| Stop everything | ⌘⌥Esc |
-| Move the robot | drag it |
-| Open the panel | double-click / right-click the robot, or the tray icon |
-
-Landing site: `pnpm web` → <http://localhost:5173>. Brand assets (DMG background, OG
-image, favicons) are rendered from it with `pnpm assets` while it runs.
-
-## First run
-1. Settings → **AI brain**: paste a free key from <https://aistudio.google.com/apikey>
-   (stored in the Keychain; release builds) — or pick Ollama for offline.
-2. Settings → **Voice** → *Turn on voice* (one-time ~700 MB download), then *Enrol my voice*.
-3. Say “Hey Sasu, open Safari”. Try “Sasu, undo”, “Sasu, save that as morning”.
-
-Just say **“Hey Sasu”** (or “சாசு”). Instant: “play some music”, “paattu podu”, “volume 30”,
-“சத்தம் குறை”, “Safari open pannu”, “what's the time”. Anything else goes to the AI.
-After Sasu answers it keeps listening a few seconds for a follow-up — no wake word needed.
-
-Hotkeys (optional): ⌥Space talk · ⌘⌥Z undo · ⌘⌥Esc stop everything.
-
-## Security model (short)
-- Core listens on 127.0.0.1 only; a fresh 256-bit token per launch is passed on **stdin**
-  (never argv/env). WebSocket checks token + Origin and rate-limits.
-- The **stdin channel is trusted**: only the Rust shell can unlock Sasu or report Touch ID
-  results. Web windows can lock, never unlock.
-- Risk tiers: safe → confirm (owner yes) → dangerous (Touch ID). Policy denies `sudo`,
-  `curl | sh`, `~/.ssh`, Keychains, `/System`…
-- Screen lock / screensaver locks the core. ⌘⌥Esc kills the running turn from Rust.
-- Every decision goes to an append-only, hash-chained SQLite log (0600), visible on the
-  Security page. Voiceprint (Phase 2) is AES-GCM encrypted, key in the Keychain.
-- Strict CSP, per-window command allowlists (`src-tauri/capabilities`), frozen prototypes.
-
-## Layout
-```
-apps/desktop/          React + TanStack UI, src-tauri/ = Rust shell
-apps/web/              landing site (Vite + motion), DMG/OG asset pages
-core/                  Python sidecar (FastAPI, later voice + brain + tools)
-packages/protocol/     schema.json generated from core/sasu_core/protocol.py
-packages/brand/        robot themes + synthesized sound kit (app and site share it)
-docs/                  architecture plan + master prompt
+git clone https://github.com/RavirajSarangan/agentsasu && cd agentsasu
+nvm use && pnpm install
+pnpm dev
 ```
 
-## Checks
-```bash
-pnpm test                                   # vitest + pytest
-pnpm typecheck
-cd core && uv run ruff check . && uv run mypy
-cd apps/desktop/src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
+Needs macOS 13+ on Apple Silicon, Node 24, pnpm 10, Rust and [uv](https://docs.astral.sh/uv/).
+
+**First run**
+
+1. **Settings → AI brain**: paste a free key from [Google AI Studio](https://aistudio.google.com/apikey), or pick Ollama.
+2. **Settings → Voice → Turn on voice** (a one-time ~700 MB download that stays on your Mac), then **Enrol my voice**.
+3. Say **“Hey Sasu”**.
+
+| Shortcut | Does |
+| --- | --- |
+| <kbd>⌥</kbd><kbd>Space</kbd> | Talk without the wake word |
+| <kbd>⌘</kbd><kbd>⌥</kbd><kbd>Z</kbd> | Undo the last request |
+| <kbd>⌘</kbd><kbd>⌥</kbd><kbd>Esc</kbd> | Stop everything |
+
+## Project layout
+
 ```
+apps/desktop/   Tauri app: React UI + src-tauri (Rust shell)
+apps/web/       Landing site, compare, privacy and terms pages
+core/           Python agent: voice, brain, tools, security, undo
+packages/       Shared protocol schema and the sound kit
+docs/           Architecture and images
+```
+
+## Roadmap
+
+- [x] Hands-free voice in English, Tamil and Tanglish
+- [x] Undo, plan preview, privacy meter, family profiles
+- [x] Briefing, focus, translator, screen explain, memory
+- [ ] Meeting notes (on-device captions → summary in Notes)
+- [ ] SOS phrase and lost-Mac alarm
+- [ ] Clipboard memory, window layouts by voice, voice diary
+- [ ] Native Swift core (smaller, faster app) and a signed download
+
+## Contributing
+
+Tamil and Tanglish speakers are especially welcome: the phrases you use every day make Sasu better.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Found a security issue? Please follow [SECURITY.md](SECURITY.md).
 
 ## License
-MIT. Robot by [robot-heads](https://github.com/fayazara/robot-heads) (MIT).
+
+[MIT](LICENSE) · [Terms](TERMS.md) · Robot by [robot-heads](https://github.com/fayazara/robot-heads).
+Sasu is not affiliated with Apple, Google, Anthropic or Groq.
+
+<div align="center"><sub>Made with ❤️ for English and தமிழ் speakers.</sub></div>

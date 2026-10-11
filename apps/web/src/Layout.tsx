@@ -141,6 +141,15 @@ export function Footer() {
           <a href="/compare.html" className="hover:text-[var(--text)]">
             Compare
           </a>
+          <a href="/privacy.html" className="hover:text-[var(--text)]">
+            Privacy
+          </a>
+          <a href="/terms.html" className="hover:text-[var(--text)]">
+            Terms
+          </a>
+          <a href="https://github.com/RavirajSarangan/agentsasu/blob/main/SECURITY.md" className="hover:text-[var(--text)]">
+            Security
+          </a>
           {GITHUB_URL && (
             <a href={GITHUB_URL} className="hover:text-[var(--text)]">
               GitHub

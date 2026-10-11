@@ -15,6 +15,7 @@ from ..security.canary import Canaries
 from ..security.leakguard import leaks
 from ..security.policy import Decision, bump, strictest
 from ..security.redact import redact_obj
+from ..security.roles import KID_TOOLS, allowed
 from ..tools import GUEST_TOOLS, REGISTRY, ToolContext, ToolResult, schemas
 from ..tools.runtime import Runner, run
 from ..undo import Journal
@@ -31,6 +32,8 @@ class Turn:
     id: str
     lang: Lang
     guest: bool = False
+    #: Who is speaking: owner | family | kid | guest (see security/roles.py)
+    role: str = "owner"
     untrusted_seen: bool = False
     plan_approved: bool = False
     calls: list[dict[str, Any]] = field(default_factory=list)
@@ -99,7 +102,9 @@ class Executor:
         if tool is None or (turn.guest and name not in GUEST_TOOLS):
             return "deny"
         d = tool.decision(args)
-        return bump(d) if turn.untrusted_seen and d != "safe" else d
+        d = bump(d) if turn.untrusted_seen and d != "safe" else d
+        role = "guest" if turn.guest else turn.role
+        return allowed(role, name, args, d)  # type: ignore[arg-type]
 
     async def call(self, name: str, args: dict[str, Any], turn: Turn) -> str:
         tool = REGISTRY.get(name)
@@ -112,7 +117,7 @@ class Executor:
             )
         d = self.decision(name, args, turn)
         if tool is None or d == "deny":
-            why = "guest" if turn.guest else "policy"
+            why = "guest" if turn.guest else turn.role if turn.role != "owner" else "policy"
             self.audit.append("rejected", reason=why, tool=name, args=args)
             await self.emit(ToolStart(id=cid, name=name, args=args, risk="dangerous"))
             await self.emit(ToolEnd(id=cid, ok=False, summary="Blocked for safety"))
@@ -161,13 +166,14 @@ class Agent:
         self, client: ChatClient, executor: Executor, emit: Emit, *, fun: bool = False
     ) -> None:
         self.client, self.ex, self.emit, self.fun = client, executor, emit, fun
+        self.context = ""  # extra owner-only context (remembered facts)
 
     async def run(self, text: str, turn: Turn, history: list[dict[str, Any]]) -> str:
         """Returns the final reply text (to be spoken)."""
-        allowed = GUEST_TOOLS if turn.guest else None
-        tools = schemas(allowed)
+        only = GUEST_TOOLS if turn.guest else KID_TOOLS if turn.role == "kid" else None
+        tools = schemas(only)
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": system_prompt(fun=self.fun)},
+            {"role": "system", "content": system_prompt(fun=self.fun) + self.context},
             *history,
             {"role": "user", "content": text},
         ]

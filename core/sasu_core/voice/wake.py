@@ -22,9 +22,49 @@ NOT_WAKE = {"season", "seasons", "sasha", "sausage", "sazon", "seashore", "seash
 _WORD = re.compile(r"[a-zA-Z0-9]+|[\u0B80-\u0BFF]+")
 
 
-def find_wake(text: str) -> tuple[bool, str]:
-    """(heard "Sasu", whatever was said after it)."""
+def _edit_distance(a: str, b: str) -> int:
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _custom(words: list[str], names: tuple[str, ...]) -> tuple[bool, str]:
+    """Match user-chosen robot names ("Chitti", "Kutty", "சிட்டி") within one edit."""
+    for name in names:
+        target = name.lower().replace(" ", "")
+        if not target or target == "sasu":
+            continue
+        tamil = not target.isascii()
+        for i in range(len(words)):
+            for span in (1, 2):
+                chunk = "".join(words[i : i + span])
+                if tamil:
+                    if chunk == target:
+                        return True, " ".join(words[i + span :])
+                elif (
+                    (
+                        len(target) >= 4
+                        and abs(len(chunk) - len(target)) <= 1
+                        and _edit_distance(chunk, target) <= 1
+                    )
+                    or len(target) < 4
+                    and chunk == target
+                ):
+                    return True, " ".join(words[i + span :])
+    return False, ""
+
+
+def find_wake(text: str, names: tuple[str, ...] = ()) -> tuple[bool, str]:
+    """(heard the robot's name, whatever was said after it). "Sasu" always works."""
     words = [w for w in _WORD.findall(text.lower()) if w not in NOT_WAKE]
+    if names:
+        heard, rest = _custom(words, names)
+        if heard:
+            return heard, rest
     for i, w in enumerate(words):
         if TAMIL.search(w) or (w.startswith(TAMIL_SHORT) and len(w) <= 5) or w in LATIN_ALIASES:
             return True, " ".join(words[i + 1 :])

@@ -229,6 +229,31 @@
         "title": "FocusApp",
         "type": "object"
       },
+      "FocusState": {
+        "description": "Focus mode countdown (seconds left; 0 = ended).",
+        "properties": {
+          "remaining": {
+            "title": "Remaining",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "type": {
+            "const": "focus",
+            "default": "focus",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "remaining",
+          "total"
+        ],
+        "title": "FocusState",
+        "type": "object"
+      },
       "Fun": {
         "description": "Playful robot moments (dancing while music plays\u2026).",
         "properties": {
@@ -241,7 +266,9 @@
             "enum": [
               "dance",
               "joke",
-              "night"
+              "night",
+              "briefing",
+              "festival"
             ],
             "title": "Kind",
             "type": "string"
@@ -546,6 +573,31 @@
         "title": "Sleep",
         "type": "object"
       },
+      "SnapRequest": {
+        "description": "Take one camera photo now and upload it to /api/intruders?snap=<id> (opt-in feature).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "type": {
+            "const": "snap_request",
+            "default": "snap_request",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ],
+        "title": "SnapRequest",
+        "type": "object"
+      },
       "SpeakerRejected": {
         "description": "Someone who is not the enrolled owner spoke. Nothing was run.",
         "properties": {
@@ -674,6 +726,25 @@
         "title": "Transcript",
         "type": "object"
       },
+      "TranslateMode": {
+        "properties": {
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "translate_mode",
+            "default": "translate_mode",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "on"
+        ],
+        "title": "TranslateMode",
+        "type": "object"
+      },
       "TurnDone": {
         "properties": {
           "ok": {
@@ -774,6 +845,13 @@
             "title": "Enrolled",
             "type": "boolean"
           },
+          "profiles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Profiles",
+            "type": "array"
+          },
           "progress": {
             "default": 0.0,
             "title": "Progress",
@@ -842,6 +920,7 @@
         "confirm_request": "#/$defs/ConfirmRequest",
         "enroll_progress": "#/$defs/EnrollProgress",
         "error": "#/$defs/ErrorEvent",
+        "focus": "#/$defs/FocusState",
         "focus_app": "#/$defs/FocusApp",
         "fun": "#/$defs/Fun",
         "idle": "#/$defs/Idle",
@@ -857,11 +936,13 @@
         "say_end": "#/$defs/SayEnd",
         "say_start": "#/$defs/SayStart",
         "sleep": "#/$defs/Sleep",
+        "snap_request": "#/$defs/SnapRequest",
         "speaker_rejected": "#/$defs/SpeakerRejected",
         "thinking": "#/$defs/Thinking",
         "tool_end": "#/$defs/ToolEnd",
         "tool_start": "#/$defs/ToolStart",
         "transcript": "#/$defs/Transcript",
+        "translate_mode": "#/$defs/TranslateMode",
         "turn_done": "#/$defs/TurnDone",
         "undo_available": "#/$defs/UndoAvailable",
         "undone": "#/$defs/Undone",
@@ -967,6 +1048,15 @@
       },
       {
         "$ref": "#/$defs/Idle"
+      },
+      {
+        "$ref": "#/$defs/FocusState"
+      },
+      {
+        "$ref": "#/$defs/TranslateMode"
+      },
+      {
+        "$ref": "#/$defs/SnapRequest"
       }
     ]
   },
@@ -1022,6 +1112,22 @@
       },
       "EnrollStart": {
         "properties": {
+          "name": {
+            "default": "Owner",
+            "maxLength": 40,
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "default": "owner",
+            "enum": [
+              "owner",
+              "family",
+              "kid"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
           "type": {
             "const": "enroll_start",
             "default": "enroll_start",
@@ -1043,6 +1149,25 @@
           }
         },
         "title": "Lock",
+        "type": "object"
+      },
+      "ProfileRemove": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "const": "profile_remove",
+            "default": "profile_remove",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ProfileRemove",
         "type": "object"
       },
       "PttStart": {
@@ -1185,6 +1310,7 @@
         "enroll_cancel": "#/$defs/EnrollCancel",
         "enroll_start": "#/$defs/EnrollStart",
         "lock": "#/$defs/Lock",
+        "profile_remove": "#/$defs/ProfileRemove",
         "ptt_start": "#/$defs/PttStart",
         "ptt_stop": "#/$defs/PttStop",
         "say_preview": "#/$defs/SayPreview",
@@ -1235,6 +1361,9 @@
       },
       {
         "$ref": "#/$defs/SayPreview"
+      },
+      {
+        "$ref": "#/$defs/ProfileRemove"
       }
     ]
   }

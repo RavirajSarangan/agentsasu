@@ -6,6 +6,7 @@ import { agentStore } from "../agent/store";
 import { ListeningBars } from "../robot/StateChip";
 import { Button } from "../ui/Button";
 import { Badge, Card, Group, Row } from "../ui/Card";
+import { FamilySettings } from "./FamilySettings";
 
 const STATE: Record<string, { label: string; color: string }> = {
   missing: { label: "Off", color: "var(--muted)" },
@@ -82,6 +83,8 @@ export function VoiceSettings({ compact = false }: { compact?: boolean }) {
           )}
         </Row>
       )}
+
+      {!compact && voice?.enrolled && <FamilySettings />}
 
       <AnimatePresence>
         {enrolling && (

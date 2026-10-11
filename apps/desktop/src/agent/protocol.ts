@@ -49,10 +49,14 @@ export const CoreEvent = z.discriminatedUnion("type", [
     detail: z.string().default(""),
     size_mb: z.number().default(0),
     enrolled: z.boolean().default(false),
+    profiles: z.array(z.string()).default([]),
   }),
+  z.object({ type: z.literal("focus"), remaining: z.number(), total: z.number() }),
+  z.object({ type: z.literal("translate_mode"), on: z.boolean() }),
+  z.object({ type: z.literal("snap_request"), id: z.string(), reason: z.string() }),
   z.object({ type: z.literal("alarm"), kind: z.enum(["canary", "leak", "panic"]), detail: z.string() }),
   z.object({ type: z.literal("intruder"), text: z.string(), score: z.number(), count: z.number() }),
-  z.object({ type: z.literal("fun"), kind: z.enum(["dance", "joke", "night"]), on: z.boolean().default(true), detail: z.string().default("") }),
+  z.object({ type: z.literal("fun"), kind: z.enum(["dance", "joke", "night", "briefing", "festival"]), on: z.boolean().default(true), detail: z.string().default("") }),
   z.object({ type: z.literal("idle") }),
   z.object({ type: z.literal("brain_status"), provider: z.string(), model: z.string(), ready: z.boolean(), keys: z.array(z.string()), voice: z.boolean() }),
 ]);
@@ -67,7 +71,8 @@ export type UiCommand =
   | { type: "set_settings"; settings: Record<string, unknown> }
   | { type: "lock" }
   | { type: "undo"; turn_id?: string | null }
-  | { type: "enroll_start" }
+  | { type: "enroll_start"; name?: string; role?: "owner" | "family" | "kid" }
+  | { type: "profile_remove"; name: string }
   | { type: "enroll_cancel" }
   | { type: "skill_run"; name: string }
   | { type: "voice_setup" }
@@ -87,4 +92,5 @@ export const UI_COMMAND_TYPES = [
   "skill_run",
   "voice_setup",
   "say_preview",
+  "profile_remove",
 ] as const satisfies readonly UiCommand["type"][];

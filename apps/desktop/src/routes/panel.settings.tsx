@@ -16,6 +16,7 @@ import { Segmented } from "../ui/Segmented";
 import { Slider } from "../ui/Slider";
 import { Switch } from "../ui/Switch";
 import { BrainSettings } from "../settings/BrainSettings";
+import { PersonalSettings } from "../settings/PersonalSettings";
 import { VoiceSettings } from "../settings/VoiceSettings";
 
 export const Route = createFileRoute("/panel/settings")({ component: SettingsPage });
@@ -44,6 +45,7 @@ function SettingsPage() {
 
       <BrainSettings />
       <VoiceSettings />
+      <PersonalSettings />
 
       <Group title="Appearance" description="How Sasu looks on your desktop.">
         <div className="py-4">

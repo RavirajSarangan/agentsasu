@@ -21,6 +21,11 @@ export type AgentState = {
   level: number;
   /** Song playing right now (the robot dances), or null. */
   song: string | null;
+  /** Focus mode: seconds left and total, or null. */
+  focus: { remaining: number; total: number } | null;
+  translating: boolean;
+  /** Today's festival id (robot dresses up), or null. */
+  festival: string | null;
   /** What left the Mac in the last turn. */
   privacy: PrivacyStat | null;
   log: { at: number; event: CoreEvent }[];
@@ -38,6 +43,9 @@ export const agentStore = new Store<AgentState>({
   enroll: null,
   level: 0,
   song: null,
+  focus: null,
+  translating: false,
+  festival: null,
   privacy: null,
   log: [],
 });
@@ -93,6 +101,9 @@ export function applyEvent(event: CoreEvent) {
     enroll: event.type === "enroll_progress" ? event : s.enroll,
     level: event.type === "turn_done" ? 0 : s.level,
     song: event.type === "fun" && event.kind === "dance" ? (event.on ? event.detail || "music" : null) : s.song,
+    focus: event.type === "focus" ? (event.remaining > 0 ? { remaining: event.remaining, total: event.total } : null) : s.focus,
+    translating: event.type === "translate_mode" ? event.on : s.translating,
+    festival: event.type === "fun" && event.kind === "festival" ? event.detail : s.festival,
     privacy: event.type === "privacy" ? event : s.privacy,
     log: [{ at: Date.now(), event }, ...s.log].slice(0, LOG_LIMIT),
   }));

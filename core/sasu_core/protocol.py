@@ -182,6 +182,27 @@ class EnrollProgress(BaseModel):
     done: bool = False
 
 
+class FocusState(BaseModel):
+    """Focus mode countdown (seconds left; 0 = ended)."""
+
+    type: Literal["focus"] = "focus"
+    remaining: int
+    total: int
+
+
+class TranslateMode(BaseModel):
+    type: Literal["translate_mode"] = "translate_mode"
+    on: bool
+
+
+class SnapRequest(BaseModel):
+    """Take one camera photo now and upload it to /api/intruders?snap=<id> (opt-in feature)."""
+
+    type: Literal["snap_request"] = "snap_request"
+    id: str
+    reason: str
+
+
 class Idle(BaseModel):
     """Listening ended with nothing to do; the robot relaxes."""
 
@@ -209,7 +230,7 @@ class Fun(BaseModel):
     """Playful robot moments (dancing while music plays…)."""
 
     type: Literal["fun"] = "fun"
-    kind: Literal["dance", "joke", "night"]
+    kind: Literal["dance", "joke", "night", "briefing", "festival"]
     on: bool = True
     detail: str = ""  # e.g. the song that's playing
 
@@ -223,6 +244,7 @@ class VoiceStatus(BaseModel):
     detail: str = ""
     size_mb: int = 0
     enrolled: bool = False
+    profiles: list[str] = Field(default_factory=list)  # "Amma (family)"
 
 
 class BrainStatus(BaseModel):
@@ -266,7 +288,10 @@ CoreEvent = Annotated[
     | Alarm
     | Intruder
     | Fun
-    | Idle,
+    | Idle
+    | FocusState
+    | TranslateMode
+    | SnapRequest,
     Field(discriminator="type"),
 ]
 
@@ -315,6 +340,13 @@ class Undo(BaseModel):
 
 class EnrollStart(BaseModel):
     type: Literal["enroll_start"] = "enroll_start"
+    name: str = Field(default="Owner", max_length=40)
+    role: Literal["owner", "family", "kid"] = "owner"
+
+
+class ProfileRemove(BaseModel):
+    type: Literal["profile_remove"] = "profile_remove"
+    name: str
 
 
 class EnrollCancel(BaseModel):
@@ -351,7 +383,8 @@ UiCommand = Annotated[
     | EnrollCancel
     | SkillRun
     | VoiceSetup
-    | SayPreview,
+    | SayPreview
+    | ProfileRemove,
     Field(discriminator="type"),
 ]
 

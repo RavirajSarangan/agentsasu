@@ -13,6 +13,7 @@ import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -60,28 +61,108 @@ class Voiceprint:
         return Verdict(ok=score >= self.threshold, score=round(score, 4))
 
 
+Role = Literal["owner", "family", "kid"]
+
+
+@dataclass
+class Profile:
+    """One enrolled person: who they are, what they may do, and their voiceprint."""
+
+    name: str
+    role: Role
+    voiceprint: Voiceprint
+
+
+def identify(profiles: Sequence[Profile], embedding: Vector) -> tuple[Profile | None, float]:
+    """The best-matching enrolled person above their threshold, and the best score seen."""
+    best: Profile | None = None
+    best_score = 0.0
+    for p in profiles:
+        v = p.voiceprint.verify(embedding)
+        if v.score > best_score:
+            best_score = v.score
+            best = p if v.ok else None
+    return best, best_score
+
+
 class VoiceprintVault:
-    """AES-256-GCM encrypted file; the key lives in the macOS Keychain (via the shell)."""
+    """AES-256-GCM encrypted file; the key lives in the macOS Keychain (via the shell).
+
+    Holds every enrolled person. Files from before family profiles (a single
+    centroid) are read as one "owner" profile.
+    """
+
+    AAD = b"sasu-voiceprint-v1"
 
     def __init__(self, path: Path, key_hex: str) -> None:
         self.path = path
         self._aead = AESGCM(bytes.fromhex(key_hex))
 
-    def save(self, vp: Voiceprint) -> None:
+    @property
+    def aead(self) -> AESGCM:
+        """The vault cipher, shared with other encrypted stores (memory)."""
+        return self._aead
+
+    def _write(self, body: dict[str, object]) -> None:
         nonce = os.urandom(12)
-        body = json.dumps({"centroid": vp.centroid, "threshold": vp.threshold}).encode()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_bytes(nonce + self._aead.encrypt(nonce, body, b"sasu-voiceprint-v1"))
+        tmp.write_bytes(nonce + self._aead.encrypt(nonce, json.dumps(body).encode(), self.AAD))
         os.chmod(tmp, 0o600)
         tmp.replace(self.path)
 
-    def load(self) -> Voiceprint | None:
+    def save_profiles(self, profiles: Sequence[Profile]) -> None:
+        self._write(
+            {
+                "profiles": [
+                    {
+                        "name": p.name,
+                        "role": p.role,
+                        "centroid": p.voiceprint.centroid,
+                        "threshold": p.voiceprint.threshold,
+                    }
+                    for p in profiles
+                ]
+            }
+        )
+
+    def load_profiles(self) -> list[Profile]:
         if not self.path.exists():
-            return None
+            return []
         raw = self.path.read_bytes()
-        body = json.loads(self._aead.decrypt(raw[:12], raw[12:], b"sasu-voiceprint-v1"))
-        return Voiceprint(list(body["centroid"]), float(body["threshold"]))
+        body = json.loads(self._aead.decrypt(raw[:12], raw[12:], self.AAD))
+        if "profiles" not in body:  # single-owner file from v0.2/v0.3
+            return [
+                Profile(
+                    "Owner", "owner", Voiceprint(list(body["centroid"]), float(body["threshold"]))
+                )
+            ]
+        return [
+            Profile(
+                str(p["name"]), p["role"], Voiceprint(list(p["centroid"]), float(p["threshold"]))
+            )
+            for p in body["profiles"]
+        ]
+
+    def upsert(self, profile: Profile) -> list[Profile]:
+        profiles = [p for p in self.load_profiles() if p.name.lower() != profile.name.lower()]
+        profiles.append(profile)
+        self.save_profiles(profiles)
+        return profiles
+
+    def remove(self, name: str) -> list[Profile]:
+        profiles = [p for p in self.load_profiles() if p.name.lower() != name.lower()]
+        self.save_profiles(profiles)
+        return profiles
+
+    # Back-compat helpers (single owner)
+    def save(self, vp: Voiceprint) -> None:
+        others = [p for p in self.load_profiles() if p.role != "owner"]
+        self.save_profiles([Profile("Owner", "owner", vp), *others])
+
+    def load(self) -> Voiceprint | None:
+        owners = [p for p in self.load_profiles() if p.role == "owner"]
+        return owners[0].voiceprint if owners else None
 
     def clear(self) -> None:
         self.path.unlink(missing_ok=True)

@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { useSelector } from "@tanstack/react-store";
-import { FlaskConical, House, type LucideIcon, Settings, ShieldCheck, Wand2 } from "lucide-react";
+import { BookHeart, FlaskConical, House, type LucideIcon, Settings, ShieldCheck, Wand2 } from "lucide-react";
 import { motion } from "motion/react";
 import { agentStore } from "../agent/store";
 import { SasuRobot } from "../robot/SasuRobot";
@@ -18,6 +18,7 @@ export const Route = createFileRoute("/panel")({
 const NAV: { to: string; label: string; Icon: LucideIcon }[] = [
   { to: "/panel", label: "Home", Icon: House },
   { to: "/panel/skills", label: "Skills", Icon: Wand2 },
+  { to: "/panel/memory", label: "Memory", Icon: BookHeart },
   { to: "/panel/settings", label: "Settings", Icon: Settings },
   { to: "/panel/security", label: "Security", Icon: ShieldCheck },
   { to: "/panel/robot-lab", label: "Robot Lab", Icon: FlaskConical },

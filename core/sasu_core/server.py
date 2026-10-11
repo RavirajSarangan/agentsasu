@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import secrets
 import time
 from collections import deque
@@ -11,9 +12,19 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi import status as http
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import ValidationError
 
 from . import __version__
@@ -116,6 +127,51 @@ def create_app(
             "bind": "127.0.0.1",
             "demo": demo,
         }
+
+    photo_name = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{6}\.jpg$")
+
+    @app.post("/api/intruders", dependencies=[Depends(require_token)])
+    async def upload_photo(
+        request: Request, snap: str = Query(..., max_length=32)
+    ) -> dict[str, str]:
+        body = await request.body()
+        name = core.accept_photo(snap, body[:400_001])
+        if name is None:
+            raise HTTPException(http.HTTP_400_BAD_REQUEST, "not requested, expired or invalid")
+        return {"file": name}
+
+    @app.get("/api/intruders", dependencies=[Depends(require_token)])
+    async def list_photos() -> list[str]:
+        d = core.photos_dir
+        return (
+            sorted((p.name for p in d.glob("*.jpg") if photo_name.match(p.name)), reverse=True)
+            if d.exists()
+            else []
+        )
+
+    @app.get("/api/intruders/{name}", dependencies=[Depends(require_token)])
+    async def get_photo(name: str) -> FileResponse:
+        if not photo_name.match(name) or not (core.photos_dir / name).is_file():
+            raise HTTPException(http.HTTP_404_NOT_FOUND)
+        return FileResponse(core.photos_dir / name, media_type="image/jpeg")
+
+    @app.delete("/api/intruders/{name}", dependencies=[Depends(require_token)])
+    async def delete_photo(name: str) -> dict[str, bool]:
+        if not photo_name.match(name):
+            raise HTTPException(http.HTTP_404_NOT_FOUND)
+        (core.photos_dir / name).unlink(missing_ok=True)
+        audit.append("intruder_photo", deleted=name)
+        return {"ok": True}
+
+    @app.get("/api/memory", dependencies=[Depends(require_token)])
+    async def list_memory() -> list[dict[str, Any]]:
+        return [{"id": f.id, "text": f.text, "at": f.at} for f in reversed(core.memory.all())]
+
+    @app.delete("/api/memory/{fid}", dependencies=[Depends(require_token)])
+    async def delete_memory(fid: str) -> dict[str, int]:
+        n = core.memory.forget(fid) if re.fullmatch(r"[0-9a-f]{10}", fid) else 0
+        audit.append("memory", action="delete", removed=n)
+        return {"removed": n}
 
     @app.get("/api/skills", dependencies=[Depends(require_token)])
     async def skills() -> list[dict[str, Any]]:

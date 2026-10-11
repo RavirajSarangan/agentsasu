@@ -1,0 +1,14 @@
+name: Feature idea
+description: Something Sasu should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to say to Sasu, and what should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does it matter to you?

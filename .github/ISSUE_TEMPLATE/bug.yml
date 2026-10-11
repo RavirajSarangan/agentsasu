@@ -1,0 +1,30 @@
+name: Bug report
+description: Something didn't work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you say or do, what did Sasu do, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: said
+    attributes:
+      label: Exact phrase (if voice)
+      placeholder: "Hey Sasu, paattu podu"
+  - type: dropdown
+    id: lang
+    attributes:
+      label: Language
+      options: [English, Tamil, Tanglish]
+  - type: input
+    id: mac
+    attributes:
+      label: macOS version and Mac model
+      placeholder: macOS 26.6, M4 MacBook Air
+  - type: textarea
+    id: logs
+    attributes:
+      label: Anything from Settings → Security → activity log (remove private info)

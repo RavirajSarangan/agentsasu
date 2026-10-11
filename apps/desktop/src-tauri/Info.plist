@@ -6,6 +6,8 @@
   <string>Sasu listens for “Hey Sasu” and your commands. Audio stays on this Mac.</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>Sasu controls apps like Safari, Music and Calendar when you ask it to.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Only if you turn on Intruder photo: Sasu takes one photo when someone else tries to use it. Photos stay on this Mac.</string>
   <key>NSFaceIDUsageDescription</key>
   <string>Sasu asks for Touch ID before risky actions like deleting files.</string>
 </dict>

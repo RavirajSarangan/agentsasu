@@ -6,7 +6,10 @@ const LINES: { text: string; lang: "en" | "ta" | "mix"; does: string }[] = [
   { text: "Downloads la irukura PDF ellam oru folder-la podu", lang: "mix", does: "Finds the PDFs, shows the plan, moves them" },
   { text: "நாளைக்கு காலையில அம்மாவுக்கு போன் பண்ண நினைவூட்டு", lang: "ta", does: "Adds a reminder for tomorrow morning" },
   { text: "Spotify-la next song podu, volume konjam kammi pannu", lang: "mix", does: "Skips the song, turns the volume down" },
-  { text: "What's eating my battery?", lang: "en", does: "Checks battery and busy apps" },
+  { text: "Good morning", lang: "en", does: "Weather, today's meetings and reminders, in one breath" },
+  { text: "Focus 25 minutes", lang: "en", does: "Closes distractions, then puts everything back when time's up" },
+  { text: "இது என்ன?", lang: "ta", does: "Looks at your screen and explains it in Tamil" },
+  { text: "Translate mode", lang: "en", does: "You speak Tamil, Sasu says it in English, and back" },
   { text: "Sasu, undo", lang: "en", does: "Puts back whatever it just changed" },
 ];
 

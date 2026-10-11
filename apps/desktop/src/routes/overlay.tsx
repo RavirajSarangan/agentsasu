@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { packs } from "@sasu/brand";
 import { DanceGlow, FloatingNotes, NowPlaying } from "../robot/DanceFx";
+import { ModeChips } from "../robot/ModeChips";
+import { startSnapListener } from "../robot/Snap";
 import { send } from "../agent/connection";
 import { agentStore } from "../agent/store";
 import { Bubble } from "../robot/Bubble";
@@ -16,6 +18,8 @@ import { authorizeAction, flyHome, flyToApp, haptic, inTauri, onHotkey, showPane
 import { onAgentEvent } from "../agent/store";
 
 export const Route = createFileRoute("/overlay")({ component: Overlay });
+
+const FESTIVE: Record<string, string> = { pongal: "🌾🍚", deepavali: "🪔✨", puthandu: "🌸", christmas: "🎄", newyear: "🎆" };
 
 function isNight() {
   const h = new Date().getHours();
@@ -39,6 +43,10 @@ function Overlay() {
   const auth = useSelector(agentStore, (s) => s.view.auth);
   const level = useSelector(agentStore, (s) => s.level);
   const song = useSelector(agentStore, (s) => s.song);
+  const focusState = useSelector(agentStore, (s) => s.focus);
+  const translating = useSelector(agentStore, (s) => s.translating);
+  const festival = useSelector(agentStore, (s) => s.festival);
+  useEffect(() => startSnapListener(), []);
   const settings = useSelector(settingsStore);
   const [mood, setMood] = useState<null | "pet" | "dizzy" | "break">(null);
   const [night, setNight] = useState(() => isNight());
@@ -183,6 +191,8 @@ function Overlay() {
         <Bubble />
       )}
       {dancing && !busy && <NowPlaying song={song} />}
+      <ModeChips focus={focusState} translating={translating} />
+      {festival && !busy && <span className="text-[18px]" aria-label="festival">{FESTIVE[festival] ?? "🎉"}</span>}
 
       <AnimatePresence>
         {(busy || hover || !connected) && (

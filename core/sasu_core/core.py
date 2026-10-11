@@ -9,7 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from . import fastpath
+from . import assist, briefing, extras, fastpath, focus
+from . import memory as mem
 from .brain.agent import Agent, Executor, Turn
 from .brain.providers import SPECS, ChatClient, LLMError, pick_model
 from .demo import detect_lang, scripted_turn
@@ -32,6 +33,7 @@ from .protocol import (
     EnrollProgress,
     EnrollStart,
     ErrorEvent,
+    FocusState,
     Fun,
     Idle,
     Intruder,
@@ -42,6 +44,7 @@ from .protocol import (
     Locked,
     LockReason,
     Privacy,
+    ProfileRemove,
     PttStart,
     Risk,
     SayChunk,
@@ -50,10 +53,12 @@ from .protocol import (
     SayStart,
     SetSettings,
     SkillRun,
+    SnapRequest,
     SpeakerRejected,
     TextCommand,
     Thinking,
     Transcript,
+    TranslateMode,
     TurnDone,
     UiCommand,
     Undo,
@@ -66,7 +71,7 @@ from .protocol import (
 )
 from .security.audit import AuditLog
 from .security.canary import Canaries
-from .security.voiceprint import Voiceprint, VoiceprintVault
+from .security.voiceprint import Profile, Voiceprint, VoiceprintVault, identify
 from .skills import SAVE, UNDO, Skills
 from .tools import ToolContext
 from .tts.macos import Speaker
@@ -103,6 +108,12 @@ class BrainSettings:
     fun_replies: bool = False
     away_minutes: int = 0
     voice_style: Literal["girl", "boy"] = "girl"
+    robot_name: str = "Sasu"
+    city: str = ""
+    intruder_photo: bool = False
+    nudges: bool = False
+    festivals: bool = True
+    distractions: list[str] = field(default_factory=lambda: list(focus.DEFAULT_DISTRACTIONS))
 
 
 class Core:
@@ -146,6 +157,16 @@ class Core:
         self.panic = PanicWord(data_dir / "panic.json")
         self.intruders_unseen: list[str] = []
         self.owner_verified_at = 0.0
+        self._enroll_who: tuple[str, str] = ("Owner", "owner")
+        self._role = "owner"
+        self._focus: asyncio.Task[None] | None = None
+        self._focus_turn: str | None = None
+        self.translating = False
+        self.memory = mem.Memory(data_dir / "memory.bin", vault.aead)
+        self.photos_dir = data_dir / "intruders"
+        self.snaps: dict[str, float] = {}
+        self._greeted_festival = ""  # pending snap id → expiry (monotonic)
+        self._last_speaker: tuple[str, str] = ("Owner", "owner")
         self.last_lang: Lang = "en"
         self._watchers: list[asyncio.Task[None]] = []
 
@@ -188,7 +209,10 @@ class Core:
             await self.hub.emit(ErrorEvent(code=code, message=message))
             await self.hub.emit(TurnDone(ok=False))
 
-    def start_text_turn(self, text: str, *, guest: bool = False, lang: Lang | None = None) -> None:
+    def start_text_turn(
+        self, text: str, *, guest: bool = False, lang: Lang | None = None, role: str = "owner"
+    ) -> None:
+        self._role = "guest" if guest else role
         text = text.strip()
         if self.panic.heard_in(text):
             self._start(self.panic_lock())
@@ -198,7 +222,39 @@ class Core:
             self.intruders_unseen = []
             self._start(self._notice_then(notice, text, lang))
             return
-        if guest:  # guests get a tiny tool set, nothing else
+        if self.translating and not guest:
+            if assist.TRANSLATE_OFF.search(text):
+                self._start(self.set_translate(False))
+            else:
+                self._start(self.translate_turn(text, lang or detect_lang(text)))
+            return
+        if not guest and role == "owner":
+            if (fact := mem.parse_save(text)) is not None:
+                self._start(self.remember(fact, lang or detect_lang(text)))
+                return
+            if (what := mem.parse_forget(text)) is not None:
+                self._start(self.forget(what))
+                return
+            if mem.RECALL.search(text):
+                self._start(self.recall(text, lang or detect_lang(text)))
+                return
+        if not guest and role in ("owner", "family"):
+            if (typed := extras.parse_type(text)) is not None:
+                self._start(self.voice_type(typed, lang or detect_lang(text)))
+                return
+            if extras.is_read(text):
+                self._start(self.read_aloud())
+                return
+            if assist.TRANSLATE_ON.search(text) and len(text.split()) <= 5:
+                self._start(self.set_translate(True))
+                return
+            if assist.CLIPBOARD.search(text):
+                self._start(self.translate_clipboard(assist.clipboard_target(text)))
+                return
+            if assist.SCREEN.search(text) and len(text.split()) <= 10:
+                self._start(self.explain_screen(text, lang or detect_lang(text)))
+                return
+        if guest or role == "kid":  # guests and kids get a small tool set, nothing else
             fast = fastpath.parse(text)
             if fast is not None:
                 self._start(self.fast_turn(text, fast, lang or detect_lang(text), guest=True))
@@ -216,6 +272,12 @@ class Core:
             self._start(self.report())
         elif JOKE.search(text) and len(text.split()) <= 6:
             self._start(self.tell_joke(lang or detect_lang(text)))
+        elif briefing.TRIGGER.search(text) and len(text.split()) <= 6:
+            self._start(self.morning_briefing(lang or detect_lang(text)))
+        elif focus.is_stop(text):
+            self._start(self.stop_focus())
+        elif (mins := focus.parse_start(text)) is not None:
+            self._start(self.start_focus(mins, lang or detect_lang(text)))
         elif (fast := fastpath.parse(text)) is not None:
             self._start(self.fast_turn(text, fast, lang or detect_lang(text)))
         elif self.brain_ready:
@@ -245,6 +307,181 @@ class Core:
         await self.speak(security_report(self.audit), "en")
         await self.hub.emit(TurnDone(ok=True))
 
+    async def morning_briefing(self, lang: Lang) -> None:
+        await self.hub.emit(Thinking())
+        info = await briefing.gather(self.runner, self.settings.city, self.transport)
+        name = self._last_speaker[0] if self._last_speaker[0] != "Owner" else ""
+        self.audit.append("briefing", weather=bool(info.get("weather")), events=len(info["events"]))
+        await self.hub.emit(Fun(kind="briefing"))
+        await self.speak(briefing.compose(info, lang, name), lang)
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def start_focus(self, minutes: int, lang: Lang) -> None:
+        from .tools.runtime import applescript
+
+        if self._focus and not self._focus.done():
+            await self.stop_focus(silent=True)
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role=self._role)
+        turn.plan_approved = True  # the user asked for focus explicitly
+        ex = self._executor()
+        running = await self.runner(
+            applescript(
+                'tell application "System Events" to get name of every process whose background only is false'
+            ),
+            5,
+            None,
+        )
+        open_now = {n.strip() for n in running.out.split(",")}
+        closing = [a for a in self.settings.distractions if a in open_now]
+        for app in closing:
+            await ex.call("apps_quit", {"app": app}, turn)
+        await ex.call("system_volume", {"level": 15}, turn)
+        self._focus_turn = turn.id
+        self.audit.append("focus", minutes=minutes, closed=closing)
+        n = len(closing)
+        en = f"Focus for {minutes} minutes. I closed {n} distracting app{'' if n == 1 else 's'}. I'll call you when it's done."
+        ta = f"{minutes} நிமிடம் focus. {n} app மூடிட்டேன். முடிஞ்சதும் சொல்றேன்."
+        await self.speak(ta if lang == "ta" else en, lang)
+        await self.hub.emit(TurnDone(ok=True))
+        self._focus = asyncio.create_task(self._focus_timer(minutes * 60, lang))
+
+    async def _focus_timer(self, total: int, lang: Lang, tick: float = 30) -> None:
+        left = total
+        while left > 0:
+            await self.hub.emit(FocusState(remaining=left, total=total))
+            step = min(tick, left)
+            await asyncio.sleep(step)
+            left -= int(step) or left
+        await self.hub.emit(FocusState(remaining=0, total=total))
+        await self._end_focus()
+        await self.speak(
+            "நேரம் முடிஞ்சது! Break எடுங்க." if lang == "ta" else "Focus time is over. Take a break!",
+            lang,
+        )
+
+    async def _end_focus(self) -> None:
+        tid, self._focus_turn = self._focus_turn, None
+        if tid:
+            ctx = ToolContext(tid, self.journal, self.holding, self.runner)
+            ok, items = await undo_turn(self.journal, tid, ctx)
+            self.audit.append("focus_end", ok=ok, restored=items)
+
+    async def stop_focus(self, silent: bool = False) -> None:
+        if self._focus and not self._focus.done():
+            self._focus.cancel()
+        await self.hub.emit(FocusState(remaining=0, total=0))
+        await self._end_focus()
+        if not silent:
+            await self.speak("Focus stopped. Everything's back.", "en")
+            await self.hub.emit(TurnDone(ok=True))
+
+    async def _single_shot(self, messages: list[dict[str, Any]], images: int = 0) -> str | None:
+        """One AI call without tools. Speaks the reason and returns None if it can't."""
+        if not self.brain_ready:
+            await self.speak("I need my AI brain for that. Add a free key in Settings.", "en")
+            return None
+        client = await self._client()
+        try:
+            sent = sum(
+                len(str(m.get("content")))
+                for m in messages
+                if not isinstance(m.get("content"), list)
+            )
+            sent += sum(
+                len(p.get("text", ""))
+                for m in messages
+                if isinstance(m.get("content"), list)
+                for p in m["content"]
+            )
+            out = await assist.ask(client, messages)
+            await self.hub.emit(Privacy(provider=client.spec.label, chars=sent, images=images))
+            return out
+        except LLMError as e:
+            await self.hub.emit(ErrorEvent(code="brain", message=str(e)))
+            await self.speak(str(e), "en")
+            return None
+        finally:
+            await client.aclose()
+
+    async def set_translate(self, on: bool) -> None:
+        self.translating = on
+        self.audit.append("translate_mode", on=on)
+        await self.hub.emit(TranslateMode(on=on))
+        if self.voice:
+            self.voice.follow_timeout = 60.0 if on else 6.0
+            self.voice.follow_up = on
+        await self.speak(
+            "Translator on. Speak Tamil and I'll say it in English, or the other way round. Say stop translating when done."
+            if on
+            else "Translator off.",
+            "en",
+        )
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def translate_turn(self, text: str, lang: Lang) -> None:
+        await self.hub.emit(Transcript(text=text, lang=lang))
+        await self.hub.emit(Thinking())
+        target = assist.target_for(text, lang)
+        out = await self._single_shot(assist.translate_messages(text, target))
+        if out:
+            self.audit.append("translate", target=target, chars=len(text))
+            await self.speak(out, "ta" if target == "ta" else "en")
+        if self.voice:
+            self.voice.follow_up = True
+            self.voice.follow_timeout = 60.0
+        await self.hub.emit(TurnDone(ok=bool(out)))
+
+    async def translate_clipboard(self, target: str) -> None:
+        turn = Turn(id=uuid.uuid4().hex[:12], lang="en", role=self._role)
+        ex = self._executor()
+        got = await self.runner(["pbpaste"], 5, None)
+        text = got.out.strip()[:4000]
+        if not text:
+            await self.speak("Your clipboard is empty.", "en")
+            await self.hub.emit(TurnDone(ok=False))
+            return
+        out = await self._single_shot(assist.translate_messages(text, target))
+        if out:
+            await ex.call("clipboard_set", {"text": out}, turn)
+            await self.speak(
+                "Done. The translation is on your clipboard."
+                if target == "en"
+                else "முடிஞ்சது. Clipboard-ல தமிழ்ல இருக்கு.",
+                "ta" if target == "ta" else "en",
+            )
+            actions = self.journal.pending(turn.id)
+            if actions:
+                await self.hub.emit(
+                    UndoAvailable(turn_id=turn.id, actions=[a.describe() for a in actions])
+                )
+        await self.hub.emit(TurnDone(ok=bool(out)))
+
+    async def explain_screen(self, question: str, lang: Lang) -> None:
+        import tempfile
+        from pathlib import Path
+
+        await self.hub.emit(Transcript(text=question, lang=lang))
+        if self.settings.provider not in assist.VISION_PROVIDERS:
+            await self.speak(
+                "Looking at the screen needs Gemini or Claude. Switch in Settings.", "en"
+            )
+            await self.hub.emit(TurnDone(ok=False))
+            return
+        await self.hub.emit(Thinking())
+        with tempfile.TemporaryDirectory() as d:
+            shot = Path(d) / "screen.png"
+            await self.runner(["screencapture", "-x", "-t", "png", str(shot)], 10, None)
+            png = shot.read_bytes() if shot.exists() else b""
+        if not png:
+            await self.speak("I couldn't take a screenshot. Allow Screen Recording for Sasu.", "en")
+            await self.hub.emit(TurnDone(ok=False))
+            return
+        self.audit.append("screen_explain", bytes=len(png))
+        out = await self._single_shot(assist.screen_messages(png, question, lang), images=1)
+        if out:
+            await self.speak(out, "ta" if assist.TAMIL.search(out) else lang)
+        await self.hub.emit(TurnDone(ok=bool(out)))
+
     async def tell_joke(self, lang: Lang) -> None:
         await self.hub.emit(Fun(kind="joke"))
         await self.speak(joke(lang), lang)
@@ -252,13 +489,14 @@ class Core:
 
     async def on_alarm(self, kind: str, detail: str) -> None:
         if kind == "canary":
+            await self.request_snap("trap file")
             await self.lock("canary")
 
     async def fast_turn(
         self, text: str, fast: fastpath.Fast, lang: Lang, *, guest: bool = False
     ) -> None:
         """Common requests, done locally in about a second."""
-        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, guest=guest)
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, guest=guest, role=self._role)
         self.audit.append(
             "command", source="guest" if guest else "owner", text=text, turn=turn.id, fast=fast.kind
         )
@@ -344,16 +582,22 @@ class Core:
 
     async def agent_turn(self, text: str, *, guest: bool = False, lang: Lang | None = None) -> None:
         lang = lang or detect_lang(text)
-        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, guest=guest)
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, guest=guest, role=self._role)
         self.audit.append("command", source="guest" if guest else "owner", text=text, turn=turn.id)
         await self.hub.emit(Transcript(text=text, lang=lang))
         await self.hub.emit(Thinking())
         client = await self._client()
         ok = True
         try:
-            reply = await Agent(client, self._executor(), self.hub.emit).run(
-                text, turn, list(self.history)
-            )
+            agent = Agent(client, self._executor(), self.hub.emit, fun=self.settings.fun_replies)
+            if turn.role == "owner" and not guest:
+                facts = self.memory.all()[-20:]
+                if facts:
+                    agent.context = (
+                        "\nThings the user asked you to remember (use when relevant):\n"
+                        + "\n".join(f"- {f.text}" for f in facts)
+                    )
+            reply = await agent.run(text, turn, list(self.history))
         except LLMError as e:
             ok, reply = False, str(e)
         finally:
@@ -465,8 +709,13 @@ class Core:
                 await self.hub.emit(Fun(kind="dance", on=bool(song), detail=song[:120]))
 
     async def set_voice(self, **changes: Any) -> None:
+        profiles = self.vault.load_profiles()
         self.voice_state = self.voice_state.model_copy(
-            update={"enrolled": self.vault.path.exists(), **changes}
+            update={
+                "enrolled": any(p.role == "owner" for p in profiles),
+                "profiles": [f"{p.name} ({p.role})" for p in profiles],
+                **changes,
+            }
         )
         await self.hub.emit(self.voice_state)
 
@@ -475,6 +724,7 @@ class Core:
         self._watchers = [
             asyncio.create_task(self._watch_away()),
             asyncio.create_task(self._watch_music()),
+            asyncio.create_task(self._watch_nudges()),
         ]
         if voice_models.ready(self.models_dir):
             await self.start_voice()
@@ -531,16 +781,18 @@ class Core:
 
         lang: Lang = "ta" if heard.lang == "ta" else "en"
         self.last_lang = lang
-        guest = False
-        voiceprint = self.vault.load()
-        recently_owner = _time.monotonic() - self.owner_verified_at < 60
-        if voiceprint is not None:
-            verdict = voiceprint.verify(heard.embedding) if heard.embedding else None
-            if verdict is not None and verdict.ok:
+        role = "owner"
+        profiles = self.vault.load_profiles()
+        recently = _time.monotonic() - self.owner_verified_at < 60
+        if profiles:
+            who, score = identify(profiles, heard.embedding) if heard.embedding else (None, 0.0)
+            if who is not None:
                 self.owner_verified_at = _time.monotonic()
-            elif verdict is None and recently_owner:
-                pass  # too short to check, but the owner was verified moments ago
-            elif verdict is None:
+                self._last_speaker = (who.name, who.role)
+                role = who.role
+            elif heard.embedding is None and recently:
+                role = self._last_speaker[1]  # too short to check; same person moments ago
+            elif heard.embedding is None:
                 await self.speak(
                     "Sorry, say that again?" if lang != "ta" else "மறுபடியும் சொல்லுங்க?", lang
                 )
@@ -548,12 +800,12 @@ class Core:
                     self.voice.arm()
                 return
             else:
-                score = verdict.score
                 self.intruders_unseen.append(heard.text)
                 self.audit.append("intruder", text=heard.text, score=score)
                 await self.hub.emit(
                     Intruder(text=heard.text, score=score, count=len(self.intruders_unseen))
                 )
+                await self.request_snap("stranger")
                 if self.settings.guest_mode == "reject":
                     await self.reject_speaker(score)
                     await self.hub.emit(
@@ -563,10 +815,150 @@ class Core:
                     await self.hub.emit(TurnDone(ok=False))
                     return
                 self.audit.append("guest", score=score)
-                guest = True
+                role = "guest"
         if self.voice:
             self.voice.follow_up = True  # keep listening after the reply, no wake word needed
-        self.start_text_turn(heard.text, guest=guest, lang=lang)
+        self.audit.append(
+            "speaker", name=self._last_speaker[0] if role != "guest" else "guest", role=role
+        )
+        self.start_text_turn(heard.text, guest=role == "guest", lang=lang, role=role)
+
+    async def request_snap(self, reason: str) -> None:
+        """Ask the overlay for one camera photo (opt-in). Upload is accepted for 20 s."""
+        import time as _time
+
+        if not self.settings.intruder_photo:
+            return
+        sid = uuid.uuid4().hex[:16]
+        now = _time.monotonic()
+        self.snaps = {k: v for k, v in self.snaps.items() if v > now}
+        self.snaps[sid] = now + 20
+        await self.hub.emit(SnapRequest(id=sid, reason=reason))
+
+    def accept_photo(self, sid: str, jpeg: bytes, reason: str = "") -> str | None:
+        """Store a requested intruder photo. Returns the file name, or None if refused."""
+        import os
+        import time as _time
+
+        if self.snaps.pop(sid, 0) < _time.monotonic():
+            return None
+        if not (1000 < len(jpeg) <= 400_000) or jpeg[:3] != b"\xff\xd8\xff":
+            return None
+        self.photos_dir.mkdir(exist_ok=True)
+        os.chmod(self.photos_dir, 0o700)
+        name = _time.strftime("%Y%m%d-%H%M%S") + f"-{sid[:6]}.jpg"
+        path = self.photos_dir / name
+        path.write_bytes(jpeg)
+        os.chmod(path, 0o600)
+        self.audit.append("intruder_photo", file=name, bytes=len(jpeg))
+        return name
+
+    async def voice_type(self, text: str, lang: Lang) -> None:
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role=self._role)
+        await self.hub.emit(Transcript(text=text, lang=lang))
+        result = await self._executor().call("type_text", {"text": text}, turn)
+        ok = result.startswith("OK")
+        await self.speak(
+            ("Typed." if lang != "ta" else "டைப் பண்ணிட்டேன்.") if ok else "I couldn't type that.", lang
+        )
+        await self.hub.emit(TurnDone(ok=ok))
+
+    async def read_aloud(self) -> None:
+        from .tools import ToolContext as Ctx
+        from .tools.keyboard import selected_text
+
+        text = await selected_text(Ctx("read", self.journal, self.holding, self.runner))
+        if not text:
+            await self.speak("Select some text first, then ask me to read it.", "en")
+            await self.hub.emit(TurnDone(ok=False))
+            return
+        self.audit.append("read_aloud", chars=len(text))
+        text = text[:3000]
+        await self.speak(text, "ta" if assist.TAMIL.search(text) else "en")
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def festival_greeting(self) -> bool:
+        """Once per festival day, the first wake gets a festive hello."""
+        import datetime as dt
+
+        f = extras.festival()
+        today = dt.date.today().isoformat()
+        if not (self.settings.festivals and f) or self._greeted_festival == today:
+            return False
+        self._greeted_festival = today
+        await self.hub.emit(Fun(kind="festival", detail=f[0]))
+        await self._say(f[2] if self.last_lang == "ta" else f[1])
+        return True
+
+    async def _watch_nudges(self) -> None:
+        """Opt-in nudges: low battery, a meeting in five minutes."""
+        import re as _re
+
+        from .tools.runtime import applescript, run
+
+        warned_batt = False
+        warned_events: set[str] = set()
+        soon = applescript(
+            "set out to {}",
+            "set t0 to current date",
+            "set t1 to t0 + (6 * minutes)",
+            'tell application "Calendar"',
+            "repeat with c in calendars",
+            "repeat with e in (every event of c whose start date > t0 and start date < t1)",
+            "set end of out to summary of e",
+            "end repeat",
+            "end repeat",
+            "end tell",
+            "set AppleScript's text item delimiters to linefeed",
+            "return out as text",
+        )
+        while True:
+            await asyncio.sleep(60)
+            if not self.settings.nudges or self.locked or (self._turn and not self._turn.done()):
+                continue
+            batt = (await run(["pmset", "-g", "batt"], 5)).out
+            m = _re.search(r"(\d+)%;\s*discharging", batt)
+            if m and int(m.group(1)) <= 15 and not warned_batt:
+                warned_batt = True
+                await self.speak(f"Battery is at {m.group(1)} percent. Time to plug in.", "en")
+            elif not m:
+                warned_batt = False
+            for title in (await run(soon, 8)).out.splitlines():
+                if title.strip() and title not in warned_events:
+                    warned_events.add(title)
+                    await self.hub.emit(Fun(kind="briefing"))
+                    await self.speak(f"Heads up: {title} starts in five minutes.", "en")
+
+    async def remember(self, fact: str, lang: Lang) -> None:
+        self.memory.add(fact)
+        self.audit.append("memory", action="add", chars=len(fact))
+        await self.speak(
+            "சரி, நினைவில் வெச்சுக்கிறேன்." if lang == "ta" else "Got it, I'll remember that.", lang
+        )
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def forget(self, what: str) -> None:
+        n = self.memory.forget(what)
+        self.audit.append("memory", action="forget", removed=n)
+        await self.speak("Forgotten." if n else "I don't remember anything like that.", "en")
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def recall(self, text: str, lang: Lang) -> None:
+        hits = self.memory.search(text)
+        if not hits:
+            reply = (
+                "நீங்க அதைப் பத்தி எதுவும் சொல்லல."
+                if lang == "ta"
+                else "You haven't told me anything about that."
+            )
+        else:
+            reply = (
+                ("நீங்க சொன்னது: " if lang == "ta" else "You told me: ")
+                + ". ".join(f.text for f in hits)
+                + "."
+            )
+        await self.speak(reply, lang)
+        await self.hub.emit(TurnDone(ok=bool(hits)))
 
     async def acknowledge_wake(self) -> None:
         """Spoken "Yes?" so it's clear Sasu heard; listening resumes when it finishes."""
@@ -582,11 +974,12 @@ class Core:
         n = len(self._enroll)
         done = n >= len(ENROLL_PHRASES)
         if done:
-            self.vault.save(Voiceprint.enroll(self._enroll))
+            name, role = self._enroll_who
+            self.vault.upsert(Profile(name, role, Voiceprint.enroll(self._enroll)))  # type: ignore[arg-type]
             self._enroll = None
             if self.voice:
                 self.voice.set_enroll(False)
-            self.audit.append("voiceprint", state="enrolled", samples=n)
+            self.audit.append("voiceprint", state="enrolled", samples=n, name=name, role=role)
         phrase = "" if done else ENROLL_PHRASES[n]
         await self.hub.emit(
             EnrollProgress(n=n, total=len(ENROLL_PHRASES), phrase=phrase, done=done)
@@ -682,7 +1075,8 @@ class Core:
             case VoiceSetup():
                 if not (self._setup and not self._setup.done()) and not self.voice:
                     self._setup = asyncio.create_task(self.setup_voice())
-            case EnrollStart() if self.voice:
+            case EnrollStart(name=name, role=role) if self.voice:
+                self._enroll_who = (name.strip() or "Owner", role)
                 self._enroll = []
                 self.voice.set_enroll(True)
                 await self.hub.emit(
@@ -690,6 +1084,10 @@ class Core:
                 )
             case EnrollStart():
                 await self.hub.emit(ErrorEvent(code="no_mic", message="Turn on voice first."))
+            case ProfileRemove(name=name):
+                self.vault.remove(name)
+                self.audit.append("voiceprint", state="removed", name=name)
+                await self.set_voice()
             case EnrollCancel():
                 self._enroll = None
                 if self.voice:
@@ -725,6 +1123,21 @@ class Core:
             changed = True
         if s.get("guest_mode") in ("guest", "reject"):
             self.settings.guest_mode = s["guest_mode"]
+        if isinstance(nu := s.get("nudges"), bool):
+            self.settings.nudges = nu
+        if isinstance(fe := s.get("festivals"), bool):
+            self.settings.festivals = fe
+        if isinstance(ip := s.get("intruder_photo"), bool):
+            self.settings.intruder_photo = ip
+        if isinstance(c := s.get("city"), str):
+            self.settings.city = c.strip()[:80]
+        if isinstance(d := s.get("distractions"), list):
+            self.settings.distractions = [str(x)[:60] for x in d][:20]
+        if isinstance(n := s.get("robot_name"), str):
+            names = tuple(x.strip() for x in n.split(",") if x.strip())[:3]
+            self.settings.robot_name = names[0] if names else "Sasu"
+            if self.voice:
+                self.voice.wake_names = names
         if s.get("voice_style") in ("girl", "boy"):
             self.settings.voice_style = s["voice_style"]
             self.speaker.style = s["voice_style"]
@@ -775,6 +1188,8 @@ class Core:
         self.cancel()
         for w in self._watchers:
             w.cancel()
+        if self._focus:
+            self._focus.cancel()
         if self.voice:
             self.voice.stop()
         self.journal.close()
@@ -800,6 +1215,8 @@ class CoreVoice(Callbacks):
         self.core.audit.append("wake", source="wakeword")
         await self.core.hub.emit(Wake(source="wakeword"))
         await self.core.hub.emit(Listening())
+        if await self.core.festival_greeting():
+            return
         if not command_follows and self.core.settings.tts:
             await self.core.acknowledge_wake()
 

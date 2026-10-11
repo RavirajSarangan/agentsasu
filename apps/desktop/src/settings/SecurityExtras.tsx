@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSelector } from "@tanstack/react-store";
-import { Bug, Ghost, KeyRound, Lock, Siren, Timer } from "lucide-react";
-import { useState } from "react";
-import { apiGet, send } from "../agent/connection";
+import { Bug, Camera, Ghost, KeyRound, Lock, Siren, Timer, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { apiFetch, apiGet, send } from "../agent/connection";
 import { agentStore } from "../agent/store";
 import { settingsStore, updateSettings } from "../robot/settings";
 import { play } from "../sound/player";
@@ -71,6 +71,16 @@ export function SecurityExtras() {
         <Row
           label={
             <span className="flex items-center gap-2">
+              <Camera size={14} className="text-[var(--accent)]" /> Intruder photo
+            </span>
+          }
+          hint="Off by default. When a stranger or a trap file triggers, take one camera photo. Photos stay on this Mac."
+        >
+          <Switch label="Intruder photo" checked={s.intruderPhoto} onChange={(intruderPhoto) => updateSettings({ intruderPhoto })} />
+        </Row>
+        <Row
+          label={
+            <span className="flex items-center gap-2">
               <Timer size={14} className="text-[var(--accent)]" /> Away lock
             </span>
           }
@@ -117,6 +127,8 @@ export function SecurityExtras() {
         </div>
       </Group>
 
+      <IntruderPhotos />
+
       <section className="flex flex-col gap-2">
         <h2 className="flex items-center gap-1.5 px-1 text-[13px] font-semibold">
           <Ghost size={14} /> Intruders and alarms
@@ -139,5 +151,47 @@ export function SecurityExtras() {
         </Card>
       </section>
     </>
+  );
+}
+
+function Photo({ name, onDelete }: { name: string; onDelete: () => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let u: string | null = null;
+    void apiFetch(`/api/intruders/${name}`)
+      .then((r) => r.blob())
+      .then((b) => setUrl((u = URL.createObjectURL(b))));
+    return () => {
+      if (u) URL.revokeObjectURL(u);
+    };
+  }, [name]);
+  const when = name.replace(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2}).*/, "$3/$2 $4:$5");
+  return (
+    <figure className="group relative overflow-hidden rounded-[10px] bg-[var(--sunken)]">
+      {url && <img src={url} alt={`Intruder photo ${when}`} className="aspect-[4/3] w-full object-cover" />}
+      <figcaption className="absolute inset-x-0 bottom-0 bg-black/45 px-2 py-1 text-[10.5px] text-white">{when}</figcaption>
+      <button aria-label="Delete photo" onClick={onDelete} className="absolute right-1.5 top-1.5 rounded-full bg-black/50 p-1 text-white opacity-0 group-hover:opacity-100">
+        <Trash2 size={11} />
+      </button>
+    </figure>
+  );
+}
+
+function IntruderPhotos() {
+  const connected = useSelector(agentStore, (st) => st.connection === "open");
+  const logSize = useSelector(agentStore, (st) => st.log.length);
+  const photos = useQuery({ queryKey: ["photos", logSize], queryFn: () => apiGet<string[]>("/api/intruders"), enabled: connected });
+  if (!photos.data?.length) return null;
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="flex items-center gap-1.5 px-1 text-[13px] font-semibold">
+        <Camera size={14} /> Intruder photos
+      </h2>
+      <div className="grid grid-cols-4 gap-2">
+        {photos.data.map((n) => (
+          <Photo key={n} name={n} onDelete={() => void apiFetch(`/api/intruders/${n}`, { method: "DELETE" }).then(() => photos.refetch())} />
+        ))}
+      </div>
+    </section>
   );
 }

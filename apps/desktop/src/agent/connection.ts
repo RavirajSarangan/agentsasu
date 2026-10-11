@@ -81,6 +81,14 @@ export async function apiGet<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Authenticated request to the core (photos, memory). */
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  if (!current) throw new Error("core not connected");
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${current.token}`);
+  return fetch(current.http + path, { ...init, headers });
+}
+
 // Keep the core in sync when brain/voice settings change in any window.
 let lastSent = "";
 settingsStore.subscribe((s) => {

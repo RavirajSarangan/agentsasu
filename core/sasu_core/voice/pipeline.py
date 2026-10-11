@@ -78,6 +78,8 @@ class VoicePipeline:
         self._forced: dict[str, Any] = {}  # (model, lang) recognizers built on demand
         # The language you mostly speak; used when Whisper guesses a third language.
         self.prefer_lang = "en"
+        # Extra robot names the owner chose ("Chitti", "சிட்டி"); "Sasu" always works.
+        self.wake_names: tuple[str, ...] = ()
         # Woken in Tamil → decode the next command as Tamil.
         self.next_lang: str | None = None
         self._turbo_args = dict(
@@ -289,7 +291,7 @@ class VoicePipeline:
             if not text:
                 self.arm(self.arm_timeout)
                 return
-            heard, rest = find_wake(text)
+            heard, rest = find_wake(text, self.wake_names)
             if heard and len(rest.split()) == 0:
                 # "Hey Sasu" again: still listening, not a command.
                 self.arm()
@@ -304,16 +306,16 @@ class VoicePipeline:
         if secs > 1.8:
             # Long enough to hold a command too: one accurate pass instead of two.
             text, lang = await run(None, self._decode, self.turbo, samples)
-            heard, rest = find_wake(text)
+            heard, rest = find_wake(text, self.wake_names)
             if not heard:
                 return
         else:
             quick, qlang = await run(None, self._decode, self.tiny, samples)
-            heard, rest = find_wake(quick)
+            heard, rest = find_wake(quick, self.wake_names)
             if not heard:
                 # Short Tamil "சாசு" often gets mis-detected as another language: try as Tamil.
                 quick = await run(None, self.decode_as, "tiny", "ta", samples)
-                heard, rest = find_wake(quick)
+                heard, rest = find_wake(quick, self.wake_names)
                 qlang = "ta"
                 if not heard:
                     return
@@ -322,7 +324,7 @@ class VoicePipeline:
             text, lang = quick, "ta" if self.next_lang == "ta" else "en"
             if len(rest.split()) >= 2:
                 text, lang = await run(None, self._decode, self.turbo, samples)
-                _, rest = find_wake(text)
+                _, rest = find_wake(text, self.wake_names)
         if len(rest.split()) >= 1:
             emb = await run(None, self._embed, samples)
             await self.cb.on_wake(command_follows=True)

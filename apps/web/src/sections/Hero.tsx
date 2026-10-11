@@ -28,7 +28,7 @@ export function Hero() {
               <DownloadButton />
               <StarButton size="lg" />
             </div>
-            <p className="text-sm text-[var(--faint)]">Free and open source. Apple Silicon Macs with macOS 13 or later.</p>
+            <p className="text-sm text-[var(--faint)]">A free, open-source voice assistant for Mac, in English and தமிழ். Apple Silicon, macOS 13 or later.</p>
           </motion.div>
         </div>
         <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.25, ease: [0.22, 1, 0.36, 1] }} className="mt-16">

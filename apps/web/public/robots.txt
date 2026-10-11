@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /banner.html
+Disallow: /dmg.html
+Disallow: /og.html
+
+Sitemap: https://sasu-web.vercel.app/sitemap.xml

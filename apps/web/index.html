@@ -3,17 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sasu — Your Mac, by voice</title>
-    <meta name="description" content="Sasu is an open-source voice agent for macOS. Say “Hey Sasu” in English or Tamil and it runs your Mac — securely, with owner-only voice and Touch ID for risky actions." />
-    <meta name="theme-color" content="#0b0d14" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+    <title>Sasu — Tamil &amp; English voice assistant for Mac (free, open source)</title>
+    <meta name="description" content="Say “Hey Sasu” in English, தமிழ் or Tanglish and your Mac opens apps, plays music, sorts files and more. Free and open source, owner-only voice, Touch ID for risky steps, undo for everything." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://sasu-web.vercel.app/" />
+    <meta name="author" content="Sarangan Raviraj" />
+    <meta name="theme-color" content="#eef1f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d1330" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Sasu — Your Mac, by voice" />
-    <meta property="og:description" content="Open-source voice agent for macOS. English & தமிழ். Owner-only, Touch ID protected." />
-    <meta property="og:image" content="/og.png" />
+    <meta property="og:site_name" content="Sasu" />
+    <meta property="og:url" content="https://sasu-web.vercel.app/" />
+    <meta property="og:title" content="Sasu — Tamil &amp; English voice assistant for Mac (free, open source)" />
+    <meta property="og:description" content="Say “Hey Sasu” in English, தமிழ் or Tanglish and your Mac opens apps, plays music, sorts files and more. Free and open source, owner-only voice, Touch ID for risky steps, undo for everything." />
+    <meta property="og:image" content="https://sasu-web.vercel.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Sasu, a friendly robot that controls your Mac by voice in English and Tamil" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="ta_IN" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Sasu — Tamil &amp; English voice assistant for Mac (free, open source)" />
+    <meta name="twitter:description" content="Say “Hey Sasu” in English, தமிழ் or Tanglish and your Mac opens apps, plays music, sorts files and more. Free and open source, owner-only voice, Touch ID for risky steps, undo for everything." />
+    <meta name="twitter:image" content="https://sasu-web.vercel.app/og.png" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Sasu", "alternateName": "சாசு", "description": "Free, open-source voice assistant for Mac that understands English, Tamil (தமிழ்) and Tanglish. Owner-only voice, Touch ID for risky actions, and undo for everything it does.", "applicationCategory": "UtilitiesApplication", "operatingSystem": "macOS 13 or later (Apple Silicon)", "softwareVersion": "0.4.0", "inLanguage": ["en", "ta"], "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "downloadUrl": "https://github.com/RavirajSarangan/agentsasu/releases/latest/download/Sasu-mac.dmg", "url": "https://sasu-web.vercel.app/", "image": "https://sasu-web.vercel.app/og.png", "screenshot": "https://raw.githubusercontent.com/RavirajSarangan/agentsasu/main/docs/images/panel-home.png", "license": "https://opensource.org/licenses/MIT", "codeRepository": "https://github.com/RavirajSarangan/agentsasu", "author": {"@type": "Person", "name": "Sarangan Raviraj", "url": "https://github.com/RavirajSarangan"}, "publisher": {"@type": "Person", "name": "Sarangan Raviraj", "url": "https://github.com/RavirajSarangan"}}</script>
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is it really free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Sasu is open source under the MIT license. It works with a free Google Gemini or Groq key, or fully offline with Ollama."}}, {"@type": "Question", "name": "Does my voice go to the cloud?", "acceptedAnswer": {"@type": "Answer", "text": "No. Wake word, speech recognition and your voiceprint all run on your Mac. With a cloud AI, only the text of your request is sent, and the privacy meter shows exactly how much."}}, {"@type": "Question", "name": "Do I need to download anything big?", "acceptedAnswer": {"@type": "Answer", "text": "Voice is a one-time download of about 700 MB that stays on your Mac. Spoken replies use the voices already built into macOS."}}, {"@type": "Question", "name": "Can someone else use it on my Mac?", "acceptedAnswer": {"@type": "Answer", "text": "Only as a guest. Other voices can ask the time or play music. Everything else needs your voice, and risky steps need Touch ID."}}, {"@type": "Question", "name": "What if it does something wrong?", "acceptedAnswer": {"@type": "Answer", "text": "Say “Sasu, undo” or press ⌘⌥Z and it reverses what it just did. ⌘⌥Esc stops everything instantly."}}, {"@type": "Question", "name": "Which Macs?", "acceptedAnswer": {"@type": "Answer", "text": "Apple Silicon Macs with macOS 13 Ventura or newer."}}, {"@type": "Question", "name": "macOS says Sasu “can't be opened”?", "acceptedAnswer": {"@type": "Answer", "text": "Sasu isn't notarized by Apple yet. Open System Settings → Privacy & Security, scroll down and click “Open Anyway” next to Sasu. You only need to do this once."}}]}</script>
   </head>
   <body>
     <div id="root"></div>

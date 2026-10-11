@@ -1,0 +1,15 @@
+# Sasu
+
+> Free, open-source voice assistant for Mac (Apple Silicon, macOS 13+). Say "Hey Sasu" in English, Tamil (தமிழ்) or Tanglish to open apps, control music and volume, sort files, set reminders and more. Developed by Sarangan Raviraj. MIT license.
+
+Key facts:
+- Voice recognition, the wake word and voiceprints run on the Mac; only the text of a request goes to the AI the user picks (free Google Gemini or Groq, Anthropic Claude, or Ollama offline).
+- Only the owner's voice gets full access; family and kid profiles get limited access; strangers get guest mode.
+- Risky actions need Touch ID; every action can be undone ("Sasu, undo"); a hash-chained log records everything.
+
+## Links
+- [Download for Mac](https://github.com/RavirajSarangan/agentsasu/releases/latest/download/Sasu-mac.dmg)
+- [Source code](https://github.com/RavirajSarangan/agentsasu)
+- [Comparison with Siri, ChatGPT, Claude, Raycast, Open Interpreter](https://sasu-web.vercel.app/compare.html)
+- [Privacy policy](https://sasu-web.vercel.app/privacy.html)
+- [Terms of use](https://sasu-web.vercel.app/terms.html)

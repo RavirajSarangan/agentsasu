@@ -35,6 +35,89 @@ public final class CoreServer {
     lazy var voiceAdapter = VoiceAdapter(server: self)
     var voiceLoading = false
 
+    // Brain
+    var keys: [String: String] = [:]  // in memory only; the shell owns storage
+    var provider = "gemini"
+    var preferredModel: String?
+    var models: [String: String] = [:]
+    var funReplies = false
+    var history: [[String: Any]] = []
+    public var baseURLOverrides: [String: String] = [:]  // tests (trusted stdin config)
+
+    var brainReady: Bool {
+        guard let spec = ProviderSpec.get(provider) else { return false }
+        return !spec.needsKey || !(keys[spec.id] ?? "").isEmpty
+    }
+
+    func brainStatus() -> [String: Any?] {
+        let spec = ProviderSpec.get(provider) ?? ProviderSpec.get("gemini")!
+        return ["type": "brain_status", "provider": spec.id, "model": models[spec.id] ?? preferredModel ?? spec.defaultModel,
+                "ready": brainReady, "keys": keys.keys.sorted(), "voice": speaker.enabled && tts]
+    }
+
+    func client() async -> ChatClient? {
+        guard var spec = ProviderSpec.get(provider) else { return nil }
+        if let o = baseURLOverrides[spec.id] { spec.baseURL = o }
+        let key = keys[spec.id]
+        if models[spec.id] == nil {
+            let probe = ChatClient(spec: spec, key: key, model: spec.defaultModel)
+            models[spec.id] = pickModel(spec, await probe.listModels(), preferred: preferredModel)
+            emit(brainStatus())
+        }
+        return ChatClient(spec: spec, key: key, model: models[spec.id]!)
+    }
+
+    func agentTurn(_ text: String, role: String, lang: String) async {
+        let turn = Turn(lang: lang, role: role)
+        audit.append("command", ["source": role == "guest" ? "guest" : "owner", "text": text, "turn": turn.id])
+        emit(["type": "transcript", "text": text, "lang": lang])
+        emit(["type": "thinking"])
+        guard let client = await client() else { return emit(["type": "turn_done", "ok": false]) }
+        let agent = Agent(client: client, executor: executor, emit: { [weak self] in self?.emit($0) }, fun: funReplies)
+        var ok = true
+        var reply: String
+        do {
+            reply = try await agent.run(text, turn, history: history)
+        } catch {
+            ok = false
+            reply = "\(error)"
+        }
+        emit(["type": "privacy", "provider": client.spec.label, "chars": agent.sentChars, "images": 0, "audio": 0])
+        let replyLang = detectLang(reply) == "ta" ? "ta" : lang
+        if ok {
+            history = Array((history + [["role": "user", "content": text], ["role": "assistant", "content": reply]]).suffix(8))
+            await speak(reply, replyLang)
+        } else {
+            emit(["type": "error", "code": "brain", "message": reply])
+            await speak(reply, "en")
+        }
+        let actions = journal.pending(turn: turn.id)
+        if !actions.isEmpty {
+            emit(["type": "undo_available", "turn_id": turn.id, "actions": actions.map { Tools.describe(kind: $0.kind, data: $0.data) }])
+        }
+        emit(["type": "turn_done", "ok": ok])
+    }
+
+    func noBrain(_ text: String, _ lang: String) async {
+        emit(["type": "transcript", "text": text, "lang": lang])
+        emit(["type": "error", "code": "no_brain", "message": "Add a free AI key in Settings → AI brain."])
+        await speak(lang != "ta" ? "I need my AI brain for that. Add a free key in Settings." : "இதுக்கு AI key வேணும். Settings-ல சேர்க்கவும்.", lang)
+        emit(["type": "turn_done", "ok": false])
+    }
+
+    func applySettings(_ st: [String: Any]) {
+        var changed = false
+        if let p = st["provider"] as? String, ProviderSpec.get(p) != nil, p != provider { provider = p; changed = true }
+        if let m = st["model"] as? String, m != (preferredModel ?? "") { preferredModel = m.isEmpty ? nil : m; models[provider] = nil; changed = true }
+        if let t = st["tts"] as? Bool { tts = t; speaker.enabled = t; changed = true }
+        if let v = st["voice_style"] as? String, ["girl", "boy"].contains(v) { speaker.style = v }
+        if let f = st["fun_replies"] as? Bool { funReplies = f }
+        if let n = st["robot_name"] as? String {
+            voice?.listener.wakeNames = n.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.prefix(3).map { $0 }
+        }
+        if changed { emit(brainStatus()) }
+    }
+
     public init(token: String, audit: AuditLog, dev: Bool, dataDir: String, runner: Runner = ProcessRunner()) throws {
         self.token = token
         self.audit = audit
@@ -245,10 +328,7 @@ public final class CoreServer {
         let guest = role == "guest" || role == "kid"
         if !guest, FastPath.match(Self.undoPattern, text) != nil { return await undoTurn(nil) }
         guard let fast = FastPath.parse(text) else {
-            emit(["type": "transcript", "text": text, "lang": lang])
-            emit(["type": "error", "code": "not_implemented", "message": "The Swift core can't answer that yet."])
-            emit(["type": "turn_done", "ok": false])
-            return
+            return brainReady ? await agentTurn(text, role: role, lang: lang) : await noBrain(text, lang)
         }
         let turn = Turn(lang: lang, role: role)
         audit.append("command", ["source": role == "guest" ? "guest" : "owner", "text": text, "turn": turn.id, "fast": fast.kind])
@@ -333,8 +413,14 @@ public final class CoreServer {
                     broadcast(locks.isEmpty ? #"{"type":"unlocked"}"# : PyJSON.compact(["type": "locked", "reasons": locks.sorted()]))
                 }
             case "secret":
-                // Keys are held in memory only and never logged; phase 1 only notes presence.
-                audit.append("key", ["provider": msg["provider"] as? String ?? "", "present": !((msg["key"] as? String) ?? "").isEmpty])
+                // Keys are held in memory only and never logged.
+                let provider = msg["provider"] as? String ?? ""
+                let key = msg["key"] as? String ?? ""
+                guard ProviderSpec.get(provider) != nil else { break }
+                if key.isEmpty { keys[provider] = nil } else { keys[provider] = key }
+                models[provider] = nil
+                audit.append("key", ["provider": provider, "present": !key.isEmpty])
+                broadcast(PyJSON.compact(brainStatus()))
             case "feed_wav":
                 // Trusted channel only (the shell / tests): play a WAV file into the listener.
                 if let path = msg["path"] as? String, let audio = readWav(path) {
@@ -387,6 +473,7 @@ public final class CoreServer {
             client.upgrade(acceptKey: WebSocket.accept(key: key))
             client.send(WebSocket.text(PyJSON.compact(["type": "ready", "version": sasuVersion, "demo": false])))
             if !locks.isEmpty { client.send(WebSocket.text(PyJSON.compact(["type": "locked", "reasons": locks.sorted()]))) }
+            client.send(WebSocket.text(PyJSON.compact(brainStatus())))
             client.send(WebSocket.text(PyJSON.compact(voiceStatus())))
             return
         }
@@ -428,6 +515,8 @@ public final class CoreServer {
         case "undo":
             let id = obj["turn_id"] as? String
             start { [weak self] in await self?.undoTurn(id) }
+        case "set_settings":
+            applySettings(obj["settings"] as? [String: Any] ?? [:])
         case "ptt_start":
             if let v = voice {
                 v.listener.arm()

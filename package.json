@@ -19,6 +19,7 @@
     "web": "pnpm --filter @sasu/web dev",
     "web:build": "pnpm --filter @sasu/web build",
     "build": "pnpm --filter @sasu/desktop tauri build",
-    "assets": "uv run --with playwright --with pillow python apps/web/scripts/render-assets.py"
+    "assets": "uv run --with playwright --with pillow python apps/web/scripts/render-assets.py",
+    "brain:gen": "uv run --project core python -m sasu_core.brain.contract > apps/mac/Sources/SasuKit/BrainContract.swift"
   }
 }

@@ -28,8 +28,16 @@ Context: it is {now}. The user is on macOS.
 """
 
 
-def system_prompt(home: Path | None = None) -> str:
-    return SYSTEM.format(home=home or Path.home(), now=time.strftime("%A %d %B %Y, %H:%M"))
+FUN = """
+Personality: you're a cheerful little robot with a Chennai sense of humour. On short success
+replies you may add one playful Tamil touch like "Semma!", "Mass!", "Done, boss!" or "Jolly!".
+Never joke when something failed, was blocked, or is about money, health or security.
+"""
+
+
+def system_prompt(home: Path | None = None, *, fun: bool = False) -> str:
+    base = SYSTEM.format(home=home or Path.home(), now=time.strftime("%A %d %B %Y, %H:%M"))
+    return base + FUN if fun else base
 
 
 def untrusted(content: str) -> str:

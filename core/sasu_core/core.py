@@ -9,11 +9,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from . import fastpath
 from .brain.agent import Agent, Executor, Turn
 from .brain.providers import SPECS, ChatClient, LLMError, pick_model
 from .demo import detect_lang, scripted_turn
+from .fun import JOKE, REPORT, PanicWord, joke, security_report
 from .hub import Hub
 from .protocol import (
+    Alarm,
     AuthRequired,
     BrainStatus,
     Cancel,
@@ -29,6 +32,9 @@ from .protocol import (
     EnrollProgress,
     EnrollStart,
     ErrorEvent,
+    Fun,
+    Idle,
+    Intruder,
     Lang,
     Level,
     Listening,
@@ -40,6 +46,7 @@ from .protocol import (
     Risk,
     SayChunk,
     SayEnd,
+    SayPreview,
     SayStart,
     SetSettings,
     SkillRun,
@@ -58,6 +65,7 @@ from .protocol import (
     Wake,
 )
 from .security.audit import AuditLog
+from .security.canary import Canaries
 from .security.voiceprint import Voiceprint, VoiceprintVault
 from .skills import SAVE, UNDO, Skills
 from .tools import ToolContext
@@ -92,6 +100,9 @@ class BrainSettings:
     model: str | None = None
     tts: bool = True
     guest_mode: Literal["guest", "reject"] = "guest"
+    fun_replies: bool = False
+    away_minutes: int = 0
+    voice_style: Literal["girl", "boy"] = "girl"
 
 
 class Core:
@@ -120,6 +131,9 @@ class Core:
         self.history: deque[dict[str, Any]] = deque(maxlen=8)
         self.last_calls: list[dict[str, Any]] = []
         self.transport: Any = None  # tests inject a fake model server
+        from .tools.runtime import run as _run
+
+        self.runner: Any = _run  # tests inject a fake so nothing really runs
         self._turn: asyncio.Task[None] | None = None
         self.models_dir = data_dir / "models"
         self.voice: VoicePipeline | None = None
@@ -128,6 +142,12 @@ class Core:
         )
         self._enroll: list[list[float]] | None = None
         self._setup: asyncio.Task[None] | None = None
+        self.canaries = Canaries(data_dir / "canaries.json")
+        self.panic = PanicWord(data_dir / "panic.json")
+        self.intruders_unseen: list[str] = []
+        self.owner_verified_at = 0.0
+        self.last_lang: Lang = "en"
+        self._watchers: list[asyncio.Task[None]] = []
 
     # ── state ──────────────────────────────────────────────────────────────
     @property
@@ -170,16 +190,34 @@ class Core:
 
     def start_text_turn(self, text: str, *, guest: bool = False, lang: Lang | None = None) -> None:
         text = text.strip()
-        if guest:  # guests get the agent with a tiny tool set, nothing else
-            self._start(
-                self.agent_turn(text, guest=True, lang=lang)
-            ) if self.brain_ready else self._start(self._no_brain(text))
+        if self.panic.heard_in(text):
+            self._start(self.panic_lock())
+            return
+        if not guest and self.intruders_unseen:
+            notice = self.intruders_unseen
+            self.intruders_unseen = []
+            self._start(self._notice_then(notice, text, lang))
+            return
+        if guest:  # guests get a tiny tool set, nothing else
+            fast = fastpath.parse(text)
+            if fast is not None:
+                self._start(self.fast_turn(text, fast, lang or detect_lang(text), guest=True))
+            elif self.brain_ready:
+                self._start(self.agent_turn(text, guest=True, lang=lang))
+            else:
+                self._start(self._no_brain(text))
         elif UNDO.match(text):
             self._start(self.undo(None))
         elif m := SAVE.match(text):
             self._start(self.save_skill(m.group("name")))
         elif name := self.skills.match(text):
             self._start(self.run_skill(name))
+        elif REPORT.search(text) and len(text.split()) <= 6:
+            self._start(self.report())
+        elif JOKE.search(text) and len(text.split()) <= 6:
+            self._start(self.tell_joke(lang or detect_lang(text)))
+        elif (fast := fastpath.parse(text)) is not None:
+            self._start(self.fast_turn(text, fast, lang or detect_lang(text)))
         elif self.brain_ready:
             self._start(self.agent_turn(text, lang=lang))
         elif self.demo:
@@ -189,11 +227,79 @@ class Core:
         else:
             self._start(self._no_brain(text))
 
+    async def _notice_then(self, attempts: list[str], text: str, lang: Lang | None) -> None:
+        n = len(attempts)
+        await self.speak(
+            f"Heads up: someone else tried to use me {n} time{'s' if n != 1 else ''} while you were away. It's in the intruder log.",
+            "en",
+        )
+        self.start_text_turn(text, lang=lang)
+
+    async def panic_lock(self) -> None:
+        self.audit.append("alarm", alarm="panic", detail="panic word heard")
+        await self.hub.emit(Alarm(kind="panic", detail="Panic word heard. Locked."))
+        await self.lock("panic")
+
+    async def report(self) -> None:
+        await self.hub.emit(Thinking())
+        await self.speak(security_report(self.audit), "en")
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def tell_joke(self, lang: Lang) -> None:
+        await self.hub.emit(Fun(kind="joke"))
+        await self.speak(joke(lang), lang)
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def on_alarm(self, kind: str, detail: str) -> None:
+        if kind == "canary":
+            await self.lock("canary")
+
+    async def fast_turn(
+        self, text: str, fast: fastpath.Fast, lang: Lang, *, guest: bool = False
+    ) -> None:
+        """Common requests, done locally in about a second."""
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, guest=guest)
+        self.audit.append(
+            "command", source="guest" if guest else "owner", text=text, turn=turn.id, fast=fast.kind
+        )
+        await self.hub.emit(Transcript(text=text, lang=lang))
+        ex = self._executor()
+        ok = True
+        content = ""
+        for name, args in fast.calls:
+            result = await ex.call(name, args, turn)
+            ok = ok and result.startswith("OK")
+            content += result
+        if not ok:
+            if guest and "BLOCKED" in content:
+                reply = (
+                    "Sorry, only my owner can do that."
+                    if lang != "ta"
+                    else "மன்னிக்கவும், என் owner மட்டும் தான் இதை செய்ய முடியும்."
+                )
+            else:
+                reply = "That didn't work." if lang != "ta" else "அது சரியா வேலை செய்யல."
+        elif fast.kind == "battery":
+            reply = fastpath.battery_reply(content, lang)
+        else:
+            reply = fast.say_ta if lang == "ta" else fast.say_en
+        self.last_calls = turn.calls or self.last_calls
+        await self.speak(reply, lang)
+        actions = self.journal.pending(turn.id)
+        if actions:
+            await self.hub.emit(
+                UndoAvailable(turn_id=turn.id, actions=[a.describe() for a in actions])
+            )
+        await self.hub.emit(TurnDone(ok=ok))
+
     async def _no_brain(self, text: str) -> None:
-        await self.hub.emit(Transcript(text=text, lang=detect_lang(text)))
+        lang = detect_lang(text)
+        await self.hub.emit(Transcript(text=text, lang=lang))
         await self.hub.emit(
             ErrorEvent(code="no_brain", message="Add a free AI key in Settings → AI brain.")
         )
+        say = "I need my AI brain for that. Add a free key in Settings."
+        await self.speak(say if lang != "ta" else "இதுக்கு AI key வேணும். Settings-ல சேர்க்கவும்.", lang)
         await self.hub.emit(TurnDone(ok=False))
 
     async def speak(self, text: str, lang: Lang) -> None:
@@ -219,7 +325,10 @@ class Core:
                 self.voice.set_speaking(False)
 
     def _executor(self) -> Executor:
-        return Executor(self.hub.emit, self.approve, self.audit, self.journal, self.holding)
+        return Executor(
+            self.hub.emit, self.approve, self.audit, self.journal, self.holding, self.runner,
+            canaries=self.canaries, on_alarm=self.on_alarm,
+        )  # fmt: skip
 
     async def _client(self) -> ChatClient:
         spec = SPECS[self.settings.provider]
@@ -261,6 +370,7 @@ class Core:
             await self.speak(reply, reply_lang)
         else:
             await self.hub.emit(ErrorEvent(code="brain", message=reply))
+            await self.speak(reply, "en")
         actions = self.journal.pending(turn.id)
         if actions:
             await self.hub.emit(
@@ -315,6 +425,45 @@ class Core:
         await self.hub.emit(TurnDone(ok=True))
 
     # ── voice ──────────────────────────────────────────────────────────────
+    async def _watch_away(self) -> None:
+        """Lock while the owner is away from the keyboard (opt-in: away_minutes > 0)."""
+        from .tools.runtime import run
+
+        while True:
+            await asyncio.sleep(20)
+            minutes = self.settings.away_minutes
+            if minutes <= 0:
+                if "away" in self.locks:
+                    await self.unlock("away")
+                continue
+            p = await run(["ioreg", "-c", "IOHIDSystem", "-d", "4"], 5)
+            idle = idle_seconds(p.out)
+            if idle is None:
+                continue
+            if idle > minutes * 60 and "away" not in self.locks:
+                await self.lock("away")
+            elif idle < 10 and "away" in self.locks:
+                await self.unlock("away")
+
+    async def _watch_music(self) -> None:
+        """The robot dances while Spotify or Music plays, and knows the song."""
+        from .tools.runtime import applescript, run
+
+        script = applescript(
+            'set out to ""',
+            'if application "Spotify" is running then tell application "Spotify" to if player state is playing then set out to (name of current track) & " — " & (artist of current track)',
+            'if out is "" and application "Music" is running then tell application "Music" to if player state is playing then set out to (name of current track) & " — " & (artist of current track)',
+            "return out",
+        )
+        current = ""
+        while True:
+            await asyncio.sleep(4)
+            p = await run(script, 5)
+            song = p.out.strip() if p.ok else ""
+            if song != current:
+                current = song
+                await self.hub.emit(Fun(kind="dance", on=bool(song), detail=song[:120]))
+
     async def set_voice(self, **changes: Any) -> None:
         self.voice_state = self.voice_state.model_copy(
             update={"enrolled": self.vault.path.exists(), **changes}
@@ -322,7 +471,11 @@ class Core:
         await self.hub.emit(self.voice_state)
 
     async def boot(self) -> None:
-        """Start listening if the voice models are already on disk."""
+        """Start listening if the voice models are already on disk, and the watchers."""
+        self._watchers = [
+            asyncio.create_task(self._watch_away()),
+            asyncio.create_task(self._watch_music()),
+        ]
         if voice_models.ready(self.models_dir):
             await self.start_voice()
         else:
@@ -372,24 +525,55 @@ class Core:
     async def voice_command(self, heard: Heard) -> None:
         if self.locked:
             self.audit.append("rejected", reason="locked", command="voice")
+            await self.speak("I'm locked right now.", "en")
             return
+        import time as _time
+
+        lang: Lang = "ta" if heard.lang == "ta" else "en"
+        self.last_lang = lang
         guest = False
         voiceprint = self.vault.load()
+        recently_owner = _time.monotonic() - self.owner_verified_at < 60
         if voiceprint is not None:
             verdict = voiceprint.verify(heard.embedding) if heard.embedding else None
-            if verdict is None or not verdict.ok:
-                score = verdict.score if verdict else 0.0
+            if verdict is not None and verdict.ok:
+                self.owner_verified_at = _time.monotonic()
+            elif verdict is None and recently_owner:
+                pass  # too short to check, but the owner was verified moments ago
+            elif verdict is None:
+                await self.speak(
+                    "Sorry, say that again?" if lang != "ta" else "மறுபடியும் சொல்லுங்க?", lang
+                )
+                if self.voice:
+                    self.voice.arm()
+                return
+            else:
+                score = verdict.score
+                self.intruders_unseen.append(heard.text)
+                self.audit.append("intruder", text=heard.text, score=score)
+                await self.hub.emit(
+                    Intruder(text=heard.text, score=score, count=len(self.intruders_unseen))
+                )
                 if self.settings.guest_mode == "reject":
                     await self.reject_speaker(score)
                     await self.hub.emit(
                         ErrorEvent(code="not_owner", message="Sorry, I only listen to my owner.")
                     )
+                    await self.speak("Sorry, I only listen to my owner.", "en")
                     await self.hub.emit(TurnDone(ok=False))
                     return
                 self.audit.append("guest", score=score)
                 guest = True
-        lang: Lang = "ta" if heard.lang == "ta" else "en"
+        if self.voice:
+            self.voice.follow_up = True  # keep listening after the reply, no wake word needed
         self.start_text_turn(heard.text, guest=guest, lang=lang)
+
+    async def acknowledge_wake(self) -> None:
+        """Spoken "Yes?" so it's clear Sasu heard; listening resumes when it finishes."""
+        if self.voice:
+            self.voice.follow_up = True
+            self.voice.follow_timeout = 8.0
+        await self._say("சொல்லுங்க?" if self.last_lang == "ta" else "Yes?")
 
     async def enroll_sample(self, embedding: list[float]) -> None:
         if self._enroll is None:
@@ -492,6 +676,9 @@ class Core:
                 else:
                     msg = "Turn on voice in Settings → Voice (one-time download), or type in the panel."
                     await self.hub.emit(ErrorEvent(code="no_mic", message=msg))
+            case SayPreview():
+                lang: Lang = "en"
+                await self.speak("Hi! I'm Sasu. வணக்கம், நான் சாசு!", lang)
             case VoiceSetup():
                 if not (self._setup and not self._setup.done()) and not self.voice:
                     self._setup = asyncio.create_task(self.setup_voice())
@@ -538,6 +725,23 @@ class Core:
             changed = True
         if s.get("guest_mode") in ("guest", "reject"):
             self.settings.guest_mode = s["guest_mode"]
+        if s.get("voice_style") in ("girl", "boy"):
+            self.settings.voice_style = s["voice_style"]
+            self.speaker.style = s["voice_style"]
+        if isinstance(f := s.get("fun_replies"), bool):
+            self.settings.fun_replies = f
+        if isinstance(a := s.get("away_minutes"), int) and 0 <= a <= 240:
+            self.settings.away_minutes = a
+        if isinstance(c := s.get("canaries"), bool):
+            if c and not self.canaries.paths:
+                planted = self.canaries.plant()
+                self.audit.append("canaries", planted=[str(p) for p in planted])
+            elif not c and self.canaries.paths:
+                self.canaries.remove()
+                self.audit.append("canaries", planted=[])
+        if isinstance(pw := s.get("panic_word"), str):
+            self.panic.update(pw)
+            self.audit.append("panic_word", set=self.panic.set)
         if changed:
             await self.hub.emit(self.brain_status())
 
@@ -569,9 +773,19 @@ class Core:
 
     def close(self) -> None:
         self.cancel()
+        for w in self._watchers:
+            w.cancel()
         if self.voice:
             self.voice.stop()
         self.journal.close()
+
+
+def idle_seconds(ioreg: str) -> float | None:
+    """HIDIdleTime (nanoseconds) from `ioreg -c IOHIDSystem` → seconds since last input."""
+    import re
+
+    m = re.search(r'"HIDIdleTime"\s*=\s*(\d+)', ioreg)
+    return int(m.group(1)) / 1e9 if m else None
 
 
 class CoreVoice(Callbacks):
@@ -580,12 +794,14 @@ class CoreVoice(Callbacks):
     def __init__(self, core: Core) -> None:
         self.core = core
 
-    async def on_wake(self) -> None:
+    async def on_wake(self, command_follows: bool) -> None:
         if self.core.locked:
             return
         self.core.audit.append("wake", source="wakeword")
         await self.core.hub.emit(Wake(source="wakeword"))
         await self.core.hub.emit(Listening())
+        if not command_follows and self.core.settings.tts:
+            await self.core.acknowledge_wake()
 
     async def on_command(self, heard: Heard) -> None:
         await self.core.voice_command(heard)
@@ -601,4 +817,4 @@ class CoreVoice(Callbacks):
         await self.core.enroll_sample(embedding)
 
     async def on_timeout(self) -> None:
-        await self.core.hub.emit(TurnDone(ok=False))
+        await self.core.hub.emit(Idle())

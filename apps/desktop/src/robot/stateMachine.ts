@@ -53,7 +53,7 @@ export function toolState(name: string): RobotHeadState {
 
 export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotView {
   const next = { ...view, settleAfterMs: null };
-  if (view.locks.length && event.type !== "locked" && event.type !== "unlocked" && event.type !== "ready") {
+  if (view.locks.length && !["locked", "unlocked", "ready", "alarm"].includes(event.type)) {
     return { ...view, state: "sleeping" }; // nothing moves the robot while locked
   }
   switch (event.type) {
@@ -86,7 +86,14 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
     case "enroll_progress":
     case "brain_status":
     case "voice_status":
+    case "fun":
       return { ...view };
+    case "idle":
+      return { ...next, state: "idle", caption: "", activeTool: null };
+    case "alarm":
+      return { ...next, state: "error", caption: `🚨 ${event.detail}`, activeTool: null, confirm: null, auth: null, settleAfterMs: 4000 };
+    case "intruder":
+      return { ...next, caption: "Not my owner. Guest mode." };
     case "thinking":
       return { ...next, state: "thinking" };
     case "tool_start":

@@ -2,6 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useSelector } from "@tanstack/react-store";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { packs } from "@sasu/brand";
+import { DanceGlow, FloatingNotes, NowPlaying } from "../robot/DanceFx";
 import { send } from "../agent/connection";
 import { agentStore } from "../agent/store";
 import { Bubble } from "../robot/Bubble";
@@ -9,10 +12,15 @@ import { Halo } from "../robot/Halo";
 import { SasuRobot } from "../robot/SasuRobot";
 import { settingsStore } from "../robot/settings";
 import { ListeningBars, StateChip } from "../robot/StateChip";
-import { authorizeAction, flyHome, flyToApp, haptic, onHotkey, showPanel, startDragging } from "../tauri";
+import { authorizeAction, flyHome, flyToApp, haptic, inTauri, onHotkey, showPanel, startDragging } from "../tauri";
 import { onAgentEvent } from "../agent/store";
 
 export const Route = createFileRoute("/overlay")({ component: Overlay });
+
+function isNight() {
+  const h = new Date().getHours();
+  return h >= 23 || h < 6;
+}
 
 const DRAG_PX = 4;
 
@@ -30,6 +38,12 @@ function Overlay() {
   const size = useSelector(settingsStore, (s) => s.size);
   const auth = useSelector(agentStore, (s) => s.view.auth);
   const level = useSelector(agentStore, (s) => s.level);
+  const song = useSelector(agentStore, (s) => s.song);
+  const settings = useSelector(settingsStore);
+  const [mood, setMood] = useState<null | "pet" | "dizzy" | "break">(null);
+  const [night, setNight] = useState(() => isNight());
+  const holdTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const dancing = Boolean(song) && settings.dance && !settings.dnd;
   const asked = useRef<string | null>(null);
 
   // Dangerous actions: ask Touch ID once per request. The shell sends the verdict to
@@ -56,6 +70,65 @@ function Overlay() {
     };
   }, []);
 
+  // "Hey Sasu" brings the robot back if it was hidden.
+  useEffect(
+    () =>
+      onAgentEvent((e) => {
+        if (e.type !== "wake") return;
+        const w = inTauri ? getCurrentWindow() : null;
+        void w?.isVisible().then((v) => (v ? undefined : w.show()));
+      }),
+    [],
+  );
+
+  // Shake it (drag fast back and forth) → dizzy. Uses the window's own moves.
+  useEffect(() => {
+    if (!inTauri) return;
+    let last: { x: number; y: number; t: number } | null = null;
+    let flips = 0;
+    let lastDir = 0;
+    let since = 0;
+    const off = getCurrentWindow().onMoved(({ payload }) => {
+      const now = performance.now();
+      if (last) {
+        const dx = payload.x - last.x;
+        const v = Math.abs(dx) / Math.max(1, now - last.t);
+        const dir = Math.sign(dx);
+        if (v > 2.5 && dir && dir !== lastDir) {
+          if (now - since > 1200) flips = 0;
+          flips += 1;
+          since = now;
+          lastDir = dir;
+          if (flips >= 4) {
+            flips = 0;
+            setMood("dizzy");
+            if (settings.sound && !settings.dnd) packs.toon.error();
+            setTimeout(() => setMood(null), 2200);
+          }
+        }
+      }
+      last = { x: payload.x, y: payload.y, t: now };
+    });
+    return () => void off.then((u) => u());
+  }, [settings.sound, settings.dnd]);
+
+  // Late at night the idle robot gets sleepy.
+  useEffect(() => {
+    const t = setInterval(() => setNight(isNight()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Break buddy: a gentle stretch / water reminder.
+  useEffect(() => {
+    if (!settings.breakMinutes) return;
+    const t = setInterval(() => {
+      setMood("break");
+      if (settings.sound && !settings.dnd) packs.kovil.confirm();
+      setTimeout(() => setMood(null), 9000);
+    }, settings.breakMinutes * 60_000);
+    return () => clearInterval(t);
+  }, [settings.breakMinutes, settings.sound, settings.dnd]);
+
   // Feel: fly to the app being worked on, trackpad taps at key moments.
   useEffect(
     () =>
@@ -71,25 +144,45 @@ function Overlay() {
   );
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button === 0) down.current = { x: e.screenX, y: e.screenY };
+    if (e.button !== 0) return;
+    down.current = { x: e.screenX, y: e.screenY };
+    // Click and hold = pet
+    holdTimer.current = setTimeout(() => {
+      down.current = null;
+      setMood("pet");
+      if (settings.sound && !settings.dnd) packs.soft.success();
+      setTimeout(() => setMood(null), 2000);
+    }, 600);
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const d = down.current;
     if (d && Math.hypot(e.screenX - d.x, e.screenY - d.y) > DRAG_PX) {
       down.current = null;
+      clearTimeout(holdTimer.current);
       startDragging();
     }
   };
   const onPointerUp = () => {
+    clearTimeout(holdTimer.current);
     if (down.current) send({ type: "ptt_start" });
     down.current = null;
   };
 
   const busy = state !== "idle" && state !== "sleeping";
+  const shown =
+    mood === "pet" ? "happy" : mood === "dizzy" ? "error" : mood === "break" ? "listening" : !busy && dancing ? "happy" : !busy && night ? "sleeping" : state;
+  const moodText = mood === "pet" ? "Hehe 💙" : mood === "dizzy" ? "Ayyo! Ellaam suthudhu…" : mood === "break" ? "Break time: konjam thanni kudinga, stretch pannunga 🙆" : null;
 
   return (
     <main className="flex h-full flex-col items-center justify-end gap-2.5 pb-5">
-      <Bubble />
+      {moodText && !busy ? (
+        <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="glass max-w-[224px] rounded-[16px] px-3.5 py-2 text-center text-[12.5px]">
+          {moodText}
+        </motion.p>
+      ) : (
+        <Bubble />
+      )}
+      {dancing && !busy && <NowPlaying song={song} />}
 
       <AnimatePresence>
         {(busy || hover || !connected) && (
@@ -116,8 +209,20 @@ function Overlay() {
           showPanel();
         }}
       >
-        <Halo state={state} size={size} />
-        <SasuRobot />
+        {dancing && !busy ? <DanceGlow size={size} /> : <Halo state={shown} size={size} />}
+        {dancing && !busy && <FloatingNotes size={size} />}
+        <motion.div
+          animate={
+            mood === "dizzy"
+              ? { rotate: [0, -14, 12, -10, 8, 0], x: [0, -8, 8, -6, 4, 0] }
+              : dancing && !busy
+                ? { y: [0, -9, 0], rotate: [0, -5, 5, 0] }
+                : { y: 0, rotate: 0, x: 0 }
+          }
+          transition={mood === "dizzy" ? { duration: 0.8 } : dancing && !busy ? { duration: 0.55, repeat: Infinity } : { duration: 0.3 }}
+        >
+          <SasuRobot state={shown} speed={dancing && !busy ? 1.5 : undefined} />
+        </motion.div>
       </motion.div>
 
       <AnimatePresence>
@@ -128,7 +233,7 @@ function Overlay() {
             exit={{ opacity: 0 }}
             className="glass -mt-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium"
           >
-            Click or ⌥Space to talk
+            Say “Hey Sasu”
           </motion.p>
         )}
       </AnimatePresence>

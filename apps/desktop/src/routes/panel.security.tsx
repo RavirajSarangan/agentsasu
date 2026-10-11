@@ -10,6 +10,7 @@ import { play } from "../sound/player";
 import { onShell, setDisabled, shellSecurity, testTouchId } from "../tauri";
 import { Button } from "../ui/Button";
 import { Badge, Card, Group, Row } from "../ui/Card";
+import { SecurityExtras } from "../settings/SecurityExtras";
 
 export const Route = createFileRoute("/panel/security")({ component: SecurityPage });
 
@@ -96,6 +97,8 @@ function SecurityPage() {
         />
         <Stat icon={UserX} color={strangers + blocked ? "var(--danger)" : "var(--muted)"} title={`${strangers + blocked} blocked`} detail={`${strangers} strangers · ${blocked} bad requests`} />
       </div>
+
+      <SecurityExtras />
 
       <Group title="Who can command Sasu">
         <Row label="Owner voice only" hint={sec.data?.voiceprintEnrolled ? "Your voiceprint is enrolled and encrypted on this Mac." : "Enrol your voice in the setup assistant (arrives with voice input)."}>

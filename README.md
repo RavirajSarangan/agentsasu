@@ -3,10 +3,10 @@
 Open-source voice desktop agent for macOS. A small robot floats on your desktop; say
 **"Hey Sasu"** and a command in English or Tamil, and it does it on your Mac.
 
-> Status: **Phase 3**. Real AI brain (free Gemini/Groq, Claude, or offline Ollama), 22 Mac
-> tools, on-device voice ("Hey Sasu", Whisper STT, owner voiceprint), native Tamil/English
-> speech, undo for every action, plan preview, privacy meter, guest mode, skills, 4 sound
-> packs. Landing: <https://sasu-web.vercel.app> (+ /compare.html).
+> **v0.3** — hands-free voice in English, தமிழ் and Tanglish ("Hey Sasu" → instant local
+> commands in ~1.5 s, AI for everything else), girl/boy voices, undo for every action,
+> owner-only voiceprint + guest mode, trap files, leak guard, panic word, away lock,
+> intruder log, music dancing and more. Site: <https://sasu-web.vercel.app>
 
 ## Requirements
 - macOS 13+, Apple Silicon
@@ -40,7 +40,11 @@ image, favicons) are rendered from it with `pnpm assets` while it runs.
 2. Settings → **Voice** → *Turn on voice* (one-time ~700 MB download), then *Enrol my voice*.
 3. Say “Hey Sasu, open Safari”. Try “Sasu, undo”, “Sasu, save that as morning”.
 
-Hotkeys: ⌥Space talk · ⌘⌥Z undo · ⌘⌥Esc stop everything.
+Just say **“Hey Sasu”** (or “சாசு”). Instant: “play some music”, “paattu podu”, “volume 30”,
+“சத்தம் குறை”, “Safari open pannu”, “what's the time”. Anything else goes to the AI.
+After Sasu answers it keeps listening a few seconds for a follow-up — no wake word needed.
+
+Hotkeys (optional): ⌥Space talk · ⌘⌥Z undo · ⌘⌥Esc stop everything.
 
 ## Security model (short)
 - Core listens on 127.0.0.1 only; a fresh 256-bit token per launch is passed on **stdin**

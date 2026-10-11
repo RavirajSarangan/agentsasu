@@ -127,6 +127,22 @@ fn remove_api_key(core: tauri::State<'_, Core>, provider: String) -> Result<(), 
     Ok(())
 }
 
+/// Security locks (panic word, trap file, away) only lift with Touch ID / password.
+#[tauri::command]
+async fn unlock_secure(core: tauri::State<'_, Core>, reason: String) -> Result<bool, String> {
+    if !["panic", "canary", "away"].contains(&reason.as_str()) {
+        return Err("unknown lock".into());
+    }
+    let why = format!("unlock Sasu ({reason})");
+    let ok = tauri::async_runtime::spawn_blocking(move || auth::authenticate(&why))
+        .await
+        .map_err(|e| e.to_string())?;
+    if ok {
+        core.control(json!({"type": "unlock", "reason": reason}));
+    }
+    Ok(ok)
+}
+
 /// Opens one of a fixed set of help pages in the browser (no arbitrary URLs from the UI).
 #[tauri::command]
 fn open_help(page: String) -> Result<(), String> {
@@ -191,7 +207,8 @@ pub fn run() {
             api_keys,
             set_api_key,
             remove_api_key,
-            open_help
+            open_help,
+            unlock_secure
         ])
         .setup(|app| {
             // Tray-only app: no Dock icon, the robot is the face of the app.

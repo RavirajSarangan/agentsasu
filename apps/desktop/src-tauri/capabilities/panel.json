@@ -22,6 +22,7 @@
     "allow-api-keys",
     "allow-set-api-key",
     "allow-remove-api-key",
-    "allow-open-help"
+    "allow-open-help",
+    "allow-unlock-secure"
   ]
 }

@@ -9,8 +9,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..protocol import CoreEvent, FocusApp, Lang, PlanPreview, Risk, ToolEnd, ToolStart
+from ..protocol import Alarm, CoreEvent, FocusApp, Lang, PlanPreview, Risk, ToolEnd, ToolStart
 from ..security.audit import AuditLog
+from ..security.canary import Canaries
+from ..security.leakguard import leaks
 from ..security.policy import Decision, bump, strictest
 from ..security.redact import redact_obj
 from ..tools import GUEST_TOOLS, REGISTRY, ToolContext, ToolResult, schemas
@@ -33,6 +35,7 @@ class Turn:
     plan_approved: bool = False
     calls: list[dict[str, Any]] = field(default_factory=list)
     sent_chars: int = 0
+    untrusted_texts: list[str] = field(default_factory=list)
 
 
 def confirm_text(name: str, args: dict[str, Any]) -> str:
@@ -73,9 +76,23 @@ class Executor:
         journal: Journal,
         holding: Path,
         runner: Runner = run,
+        canaries: Canaries | None = None,
+        on_alarm: Callable[[str, str], Awaitable[None]] | None = None,
     ) -> None:
         self.emit, self.approve, self.audit, self.journal = emit, approve, audit, journal
         self.holding, self.runner = holding, runner
+        self.canaries, self.on_alarm = canaries, on_alarm
+
+    async def _alarm(
+        self, kind: str, detail: str, name: str, args: dict[str, Any], cid: str
+    ) -> str:
+        self.audit.append("alarm", alarm=kind, detail=detail, tool=name, args=args)
+        await self.emit(ToolStart(id=cid, name=name, args=args, risk="dangerous"))
+        await self.emit(ToolEnd(id=cid, ok=False, summary="Blocked: " + detail))
+        await self.emit(Alarm(kind=kind, detail=detail))  # type: ignore[arg-type]
+        if self.on_alarm:
+            await self.on_alarm(kind, detail)
+        return "BLOCKED for security. Stop and tell the user briefly that you were stopped."
 
     def decision(self, name: str, args: dict[str, Any], turn: Turn) -> Decision:
         tool = REGISTRY.get(name)
@@ -87,6 +104,12 @@ class Executor:
     async def call(self, name: str, args: dict[str, Any], turn: Turn) -> str:
         tool = REGISTRY.get(name)
         cid = uuid.uuid4().hex[:8]
+        if self.canaries and (why := self.canaries.tripped_by(args)):
+            return await self._alarm("canary", why, name, args, cid)
+        if leaks(name, args, turn.untrusted_texts):
+            return await self._alarm(
+                "leak", "tried to send out text it had just read", name, args, cid
+            )
         d = self.decision(name, args, turn)
         if tool is None or d == "deny":
             why = "guest" if turn.guest else "policy"
@@ -120,6 +143,10 @@ class Executor:
         content = res.content
         if tool.untrusted_output and content:
             turn.untrusted_seen = True
+            turn.untrusted_texts.append(content[:20_000])
+            if self.canaries and any(t in content for t in self.canaries.tokens):
+                await self._alarm("canary", "read a trap file", name, args, cid)
+                return "BLOCKED for security. Stop and tell the user briefly that you were stopped."
             content = untrusted(content)
         return f"{'OK' if res.ok else 'FAILED'}: {res.summary}\n{content}".strip()
 
@@ -130,15 +157,17 @@ def needs_plan(calls: list[tuple[str, dict[str, Any]]], ex: Executor, turn: Turn
 
 
 class Agent:
-    def __init__(self, client: ChatClient, executor: Executor, emit: Emit) -> None:
-        self.client, self.ex, self.emit = client, executor, emit
+    def __init__(
+        self, client: ChatClient, executor: Executor, emit: Emit, *, fun: bool = False
+    ) -> None:
+        self.client, self.ex, self.emit, self.fun = client, executor, emit, fun
 
     async def run(self, text: str, turn: Turn, history: list[dict[str, Any]]) -> str:
         """Returns the final reply text (to be spoken)."""
         allowed = GUEST_TOOLS if turn.guest else None
         tools = schemas(allowed)
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": system_prompt()},
+            {"role": "system", "content": system_prompt(fun=self.fun)},
             *history,
             {"role": "user", "content": text},
         ]

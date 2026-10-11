@@ -18,6 +18,7 @@ fn main() {
         "set_api_key",
         "remove_api_key",
         "open_help",
+        "unlock_secure",
     ])))
     .expect("failed to run tauri-build");
 }

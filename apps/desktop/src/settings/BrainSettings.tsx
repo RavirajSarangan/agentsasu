@@ -1,6 +1,7 @@
 import { useSelector } from "@tanstack/react-store";
 import { ArrowUpRight, Brain, Check, KeyRound, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { send } from "../agent/connection";
 import { agentStore } from "../agent/store";
 import { settingsStore, updateSettings } from "../robot/settings";
 import { play } from "../sound/player";
@@ -122,8 +123,25 @@ export function BrainSettings() {
             </Button>
           </Row>
         )}
-        <Row label="Speak replies" hint="Uses the Mac's own voices: Vani for Tamil, Rishi for English. No download.">
+        <Row label="Speak replies" hint="Uses the Mac's own voices. No download.">
           <Switch label="Speak replies" checked={s.tts} onChange={(tts) => updateSettings({ tts })} />
+        </Row>
+        <Row label="Voice" hint={s.voiceStyle === "girl" ? "Tara for English, Vani for தமிழ்." : "Rishi for English, Vani for தமிழ்."}>
+          <Segmented
+            size="sm"
+            value={s.voiceStyle}
+            onChange={(voiceStyle) => {
+              updateSettings({ voiceStyle });
+              setTimeout(() => send({ type: "say_preview" }), 250);
+            }}
+            options={[
+              { value: "girl", label: "Girl" },
+              { value: "boy", label: "Boy" },
+            ]}
+          />
+          <Button size="sm" onClick={() => send({ type: "say_preview" })}>
+            Preview
+          </Button>
         </Row>
         <Row label="Unknown voices" hint="Guest: someone else may only check the time or play music. Ignore: nothing at all.">
           <Segmented

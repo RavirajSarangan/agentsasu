@@ -151,7 +151,7 @@ def test_without_a_key_sasu_asks_for_one(bare_client: TestClient) -> None:
     with bare_client.websocket_connect(WS) as ws:
         status = until(ws, "brain_status")[-1]
         assert status["ready"] is False
-        ws.send_text(json.dumps({"type": "text_command", "text": "open Safari"}))
+        ws.send_text(json.dumps({"type": "text_command", "text": "write a poem about rain"}))
         assert until(ws, "error")[-1]["code"] == "no_brain"
 
 

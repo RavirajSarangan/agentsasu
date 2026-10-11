@@ -100,4 +100,10 @@ def schemas(allowed: set[str] | None = None) -> list[dict[str, Any]]:
     return [t.schema() for t in REGISTRY.values() if allowed is None or t.name in allowed]
 
 
-GUEST_TOOLS = {"system_info", "media_control", "media_now_playing"}
+GUEST_TOOLS = {
+    "system_info",
+    "media_control",
+    "media_now_playing",
+    "system_volume",
+    "system_volume_step",
+}

@@ -32,6 +32,18 @@ export type RobotSettings = {
   tts: boolean;
   /** Unknown voices: limited "guest" tools, or ignored completely. */
   guestMode: "guest" | "reject";
+  /** Sasu's speaking voice: girl (Tara + Vani) or boy (Rishi + Vani). */
+  voiceStyle: "girl" | "boy";
+  /** Robot dances while music plays. */
+  dance: boolean;
+  /** Playful Tamil touches in replies. */
+  funReplies: boolean;
+  /** Lock when the Mac has been idle this many minutes (0 = off). */
+  awayMinutes: number;
+  /** Plant trap files that catch misuse. */
+  canaries: boolean;
+  /** Stretch / water reminder every N minutes (0 = off). */
+  breakMinutes: number;
   /** First-run setup finished. */
   onboarded: boolean;
   uiLang: "en" | "ta";
@@ -65,6 +77,12 @@ const defaults: RobotSettings = {
   provider: "gemini",
   tts: true,
   guestMode: "guest",
+  voiceStyle: "girl",
+  dance: true,
+  funReplies: true,
+  awayMinutes: 0,
+  canaries: true,
+  breakMinutes: 0,
   onboarded: false,
   uiLang: "en",
 };
@@ -106,5 +124,13 @@ if (isTauri()) {
 
 /** The part of the settings the agent core cares about. */
 export function coreSettings(s: RobotSettings) {
-  return { provider: s.provider, tts: s.tts, guest_mode: s.guestMode };
+  return {
+    provider: s.provider,
+    tts: s.tts,
+    guest_mode: s.guestMode,
+    voice_style: s.voiceStyle,
+    fun_replies: s.funReplies,
+    away_minutes: s.awayMinutes,
+    canaries: s.canaries,
+  };
 }

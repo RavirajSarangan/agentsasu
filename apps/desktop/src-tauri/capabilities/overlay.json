@@ -13,6 +13,8 @@
     "allow-authorize-action",
     "allow-haptic",
     "allow-fly-to-app",
-    "allow-fly-home"
+    "allow-fly-home",
+    "core:window:allow-show",
+    "core:window:allow-is-visible"
   ]
 }

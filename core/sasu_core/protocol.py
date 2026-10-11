@@ -101,7 +101,7 @@ class Sleep(BaseModel):
     type: Literal["sleep"] = "sleep"
 
 
-LockReason = Literal["screen", "disabled", "user"]
+LockReason = Literal["screen", "disabled", "user", "panic", "canary", "away"]
 
 
 class SpeakerRejected(BaseModel):
@@ -182,6 +182,38 @@ class EnrollProgress(BaseModel):
     done: bool = False
 
 
+class Idle(BaseModel):
+    """Listening ended with nothing to do; the robot relaxes."""
+
+    type: Literal["idle"] = "idle"
+
+
+class Alarm(BaseModel):
+    """Something tried to misuse Sasu (trap file touched, data leak blocked)."""
+
+    type: Literal["alarm"] = "alarm"
+    kind: Literal["canary", "leak", "panic"]
+    detail: str
+
+
+class Intruder(BaseModel):
+    """Someone other than the owner tried a command."""
+
+    type: Literal["intruder"] = "intruder"
+    text: str
+    score: float
+    count: int
+
+
+class Fun(BaseModel):
+    """Playful robot moments (dancing while music plays…)."""
+
+    type: Literal["fun"] = "fun"
+    kind: Literal["dance", "joke", "night"]
+    on: bool = True
+    detail: str = ""  # e.g. the song that's playing
+
+
 class VoiceStatus(BaseModel):
     """On-device voice: models missing / downloading / ready / listening / error."""
 
@@ -230,7 +262,11 @@ CoreEvent = Annotated[
     | Level
     | EnrollProgress
     | BrainStatus
-    | VoiceStatus,
+    | VoiceStatus
+    | Alarm
+    | Intruder
+    | Fun
+    | Idle,
     Field(discriminator="type"),
 ]
 
@@ -285,6 +321,12 @@ class EnrollCancel(BaseModel):
     type: Literal["enroll_cancel"] = "enroll_cancel"
 
 
+class SayPreview(BaseModel):
+    """Speak a short sample in the current voice (settings preview)."""
+
+    type: Literal["say_preview"] = "say_preview"
+
+
 class VoiceSetup(BaseModel):
     """Download the on-device voice models (one time) and start listening."""
 
@@ -308,7 +350,8 @@ UiCommand = Annotated[
     | EnrollStart
     | EnrollCancel
     | SkillRun
-    | VoiceSetup,
+    | VoiceSetup
+    | SayPreview,
     Field(discriminator="type"),
 ]
 

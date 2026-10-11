@@ -84,6 +84,12 @@ class AuditLog:
         ).fetchall()
         return [Entry(r[0], r[1], r[2], json.loads(r[3]), r[4]) for r in rows]
 
+    def since(self, ts: float) -> list[Entry]:
+        rows = self._db.execute(
+            "SELECT id, at, kind, data, hash FROM audit WHERE at >= ? ORDER BY id", (ts,)
+        ).fetchall()
+        return [Entry(r[0], r[1], r[2], json.loads(r[3]), r[4]) for r in rows]
+
     def verify(self) -> ChainStatus:
         prev = GENESIS
         count = 0

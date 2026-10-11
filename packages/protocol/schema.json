@@ -1,6 +1,36 @@
 {
   "coreEvent": {
     "$defs": {
+      "Alarm": {
+        "description": "Something tried to misuse Sasu (trap file touched, data leak blocked).",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "canary",
+              "leak",
+              "panic"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "type": {
+            "const": "alarm",
+            "default": "alarm",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "detail"
+        ],
+        "title": "Alarm",
+        "type": "object"
+      },
       "AuthRequired": {
         "description": "A dangerous action needs Touch ID / password, handled by the desktop shell.",
         "properties": {
@@ -199,6 +229,84 @@
         "title": "FocusApp",
         "type": "object"
       },
+      "Fun": {
+        "description": "Playful robot moments (dancing while music plays\u2026).",
+        "properties": {
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "dance",
+              "joke",
+              "night"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "on": {
+            "default": true,
+            "title": "On",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "fun",
+            "default": "fun",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "Fun",
+        "type": "object"
+      },
+      "Idle": {
+        "description": "Listening ended with nothing to do; the robot relaxes.",
+        "properties": {
+          "type": {
+            "const": "idle",
+            "default": "idle",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Idle",
+        "type": "object"
+      },
+      "Intruder": {
+        "description": "Someone other than the owner tried a command.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "intruder",
+            "default": "intruder",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "score",
+          "count"
+        ],
+        "title": "Intruder",
+        "type": "object"
+      },
       "Level": {
         "description": "Mic input level 0\u20131, for meters.",
         "properties": {
@@ -238,7 +346,10 @@
               "enum": [
                 "screen",
                 "disabled",
-                "user"
+                "user",
+                "panic",
+                "canary",
+                "away"
               ],
               "type": "string"
             },
@@ -725,12 +836,16 @@
     },
     "discriminator": {
       "mapping": {
+        "alarm": "#/$defs/Alarm",
         "auth_required": "#/$defs/AuthRequired",
         "brain_status": "#/$defs/BrainStatus",
         "confirm_request": "#/$defs/ConfirmRequest",
         "enroll_progress": "#/$defs/EnrollProgress",
         "error": "#/$defs/ErrorEvent",
         "focus_app": "#/$defs/FocusApp",
+        "fun": "#/$defs/Fun",
+        "idle": "#/$defs/Idle",
+        "intruder": "#/$defs/Intruder",
         "level": "#/$defs/Level",
         "listening": "#/$defs/Listening",
         "locked": "#/$defs/Locked",
@@ -840,6 +955,18 @@
       },
       {
         "$ref": "#/$defs/VoiceStatus"
+      },
+      {
+        "$ref": "#/$defs/Alarm"
+      },
+      {
+        "$ref": "#/$defs/Intruder"
+      },
+      {
+        "$ref": "#/$defs/Fun"
+      },
+      {
+        "$ref": "#/$defs/Idle"
       }
     ]
   },
@@ -940,6 +1067,19 @@
           }
         },
         "title": "PttStop",
+        "type": "object"
+      },
+      "SayPreview": {
+        "description": "Speak a short sample in the current voice (settings preview).",
+        "properties": {
+          "type": {
+            "const": "say_preview",
+            "default": "say_preview",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "SayPreview",
         "type": "object"
       },
       "SetSettings": {
@@ -1047,6 +1187,7 @@
         "lock": "#/$defs/Lock",
         "ptt_start": "#/$defs/PttStart",
         "ptt_stop": "#/$defs/PttStop",
+        "say_preview": "#/$defs/SayPreview",
         "set_settings": "#/$defs/SetSettings",
         "skill_run": "#/$defs/SkillRun",
         "text_command": "#/$defs/TextCommand",
@@ -1091,6 +1232,9 @@
       },
       {
         "$ref": "#/$defs/VoiceSetup"
+      },
+      {
+        "$ref": "#/$defs/SayPreview"
       }
     ]
   }

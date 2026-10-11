@@ -29,7 +29,7 @@ type Props = Omit<RobotHeadProps, "state" | "shape" | "color" | "trimColor" | "s
 
 /** The live Sasu robot: state from the agent, look from the shared settings. */
 export const SasuRobot = forwardRef<HTMLCanvasElement, Props>(function SasuRobot(
-  { state: forced, size, ...rest },
+  { state: forced, size, speed: speedOverride, ...rest },
   ref,
 ) {
   const live = useSelector(agentStore, (s) => s.view.state);
@@ -48,7 +48,7 @@ export const SasuRobot = forwardRef<HTMLCanvasElement, Props>(function SasuRobot
       color={theme.color}
       trimColor={theme.trimColor}
       screenColor={theme.screen[lang]}
-      speed={speedFor(state, settings.batterySaver)}
+      speed={speedOverride ?? speedFor(state, settings.batterySaver)}
       paused={settings.dnd}
       seed={seed}
       aria-label={`Sasu, ${LABEL[state]}`}

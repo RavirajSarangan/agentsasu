@@ -1,7 +1,8 @@
 """Speech with the Mac's built-in voices: zero downloads.
 
-Tamil script → Vani (ta_IN); everything else → Rishi (en_IN). A Tanglish reply switches
-voice per run of script, so each part sounds natural. Cancelling kills `say` at once.
+Two styles. Girl (default): Tara (Indian English) + Vani (Tamil). Boy: Rishi + Vani.
+A Tanglish reply switches voice per run of script, so each part sounds natural.
+Cancelling kills `say` at once.
 """
 
 from __future__ import annotations
@@ -11,7 +12,11 @@ import re
 import shutil
 
 TAMIL = re.compile(r"[஀-௿]")
-VOICES = {"ta": "Vani", "en": "Rishi"}
+STYLES = {
+    "girl": {"ta": "Vani", "en": "Tara"},
+    "boy": {"ta": "Vani", "en": "Rishi"},
+}
+VOICES = STYLES["girl"]
 
 
 def split_runs(text: str) -> list[tuple[str, str]]:
@@ -30,8 +35,9 @@ def split_runs(text: str) -> list[tuple[str, str]]:
 
 
 class Speaker:
-    def __init__(self, rate: int = 190) -> None:
+    def __init__(self, rate: int = 195, style: str = "girl") -> None:
         self.rate = rate
+        self.style = style
         self.enabled = shutil.which("say") is not None
         self._proc: asyncio.subprocess.Process | None = None
 
@@ -40,7 +46,7 @@ class Speaker:
             return
         for lang, chunk in split_runs(text):
             self._proc = await asyncio.create_subprocess_exec(
-                "say", "-v", VOICES[lang], "-r", str(self.rate), chunk,
+                "say", "-v", STYLES.get(self.style, VOICES)[lang], "-r", str(self.rate), chunk,
                 stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
             )  # fmt: skip
             try:

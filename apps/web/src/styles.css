@@ -1,112 +1,250 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/instrument-sans";
 @import "@fontsource-variable/noto-sans-tamil";
 
+/*
+  Sasu — design tokens. Light is the primary theme.
+  Porcelain page, navy ink, the robot's shell blue, LED amber for highlights,
+  and a dot grid (LED matrix ↔ kolam) as the recurring motif.
+*/
 :root {
-  --bg: #f6f6f8;
-  --bg-2: #ffffff;
-  --text: #0b0d14;
-  --muted: #5b6070;
-  --faint: #9aa0ad;
-  --line: rgba(10, 14, 30, 0.08);
-  --card: rgba(255, 255, 255, 0.72);
+  --bg: #eef1f7; /* porcelain */
+  --bg-2: #f7f9fc;
+  --panel: #ffffff;
+  --card: rgba(255, 255, 255, 0.78);
   --card-solid: #ffffff;
-  --accent: #3a5fd0;
-  --accent-2: #7c5cff;
-  --glow: rgba(58, 95, 208, 0.28);
-  --shadow: 0 1px 2px rgba(10, 14, 30, 0.05), 0 12px 40px -12px rgba(10, 14, 30, 0.18);
+  --text: #141a33; /* ink */
+  --muted: #59617e;
+  --faint: #9aa1b8;
+  --line: rgba(20, 26, 51, 0.1);
+  --line-strong: rgba(20, 26, 51, 0.18);
+  --accent: #2b49a3; /* robot shell */
+  --accent-hi: #3a5ccc;
+  --accent-ink: #ffffff;
+  --amber: #f5a524; /* LED amber */
+  --signal: #1fa968;
+  --danger: #e5484d;
+  --glow: rgba(43, 73, 163, 0.22);
+  --dot: rgba(43, 73, 163, 0.16);
+  --shadow-sm: 0 1px 2px rgba(20, 26, 51, 0.06), 0 0 0 1px rgba(20, 26, 51, 0.05);
+  --shadow: 0 1px 2px rgba(20, 26, 51, 0.05), 0 12px 32px -12px rgba(20, 26, 51, 0.18), 0 0 0 1px rgba(20, 26, 51, 0.05);
+  --shadow-lg: 0 2px 6px rgba(20, 26, 51, 0.05), 0 40px 80px -28px rgba(20, 26, 51, 0.35), 0 0 0 1px rgba(20, 26, 51, 0.06);
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-tamil: "Noto Sans Tamil Variable", sans-serif;
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #07080d;
-    --bg-2: #0e1018;
-    --text: #f3f4f8;
-    --muted: #9da3b4;
-    --faint: #5f6577;
-    --line: rgba(255, 255, 255, 0.08);
-    --card: rgba(22, 24, 34, 0.66);
-    --card-solid: #12141c;
-    --accent: #6f8cff;
-    --accent-2: #a78bfa;
-    --glow: rgba(111, 140, 255, 0.3);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 20px 50px -16px rgba(0, 0, 0, 0.8);
-    color-scheme: dark;
-  }
-}
-
 :root[data-theme="dark"] {
-  --bg: #07080d;
-  --bg-2: #0e1018;
-  --text: #f3f4f8;
-  --muted: #9da3b4;
-  --faint: #5f6577;
-  --line: rgba(255, 255, 255, 0.08);
-  --card: rgba(22, 24, 34, 0.66);
-  --card-solid: #12141c;
-  --accent: #6f8cff;
-  --accent-2: #a78bfa;
-  --glow: rgba(111, 140, 255, 0.3);
+  --bg: #0d1330;
+  --bg-2: #121a3c;
+  --panel: #172048;
+  --card: rgba(23, 32, 72, 0.72);
+  --card-solid: #172048;
+  --text: #eef1fa;
+  --muted: #a3abcc;
+  --faint: #6a739b;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --accent: #7b96ff;
+  --accent-hi: #96acff;
+  --accent-ink: #0d1330;
+  --amber: #ffc65c;
+  --signal: #3ad08a;
+  --glow: rgba(123, 150, 255, 0.28);
+  --dot: rgba(150, 172, 255, 0.14);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -16px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.5), 0 40px 90px -30px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08);
   color-scheme: dark;
 }
 
 html {
   overflow-x: clip;
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Inter Variable", system-ui, "Noto Sans Tamil Variable", sans-serif;
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 300ms ease, color 300ms ease;
 }
 
 :lang(ta) {
-  font-family: "Noto Sans Tamil Variable", -apple-system, sans-serif;
+  font-family: var(--font-tamil);
 }
 
+::selection {
+  background: var(--glow);
+}
+
+:focus-visible {
+  outline: 2.5px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+/* Display type: Bricolage at its optical display size, set tight. */
+.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variation-settings: "opsz" 96, "wdth" 90;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  text-wrap: balance;
+}
+.title {
+  font-family: var(--font-display);
+  font-weight: 650;
+  font-variation-settings: "opsz" 48, "wdth" 95;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+.lede {
+  color: var(--muted);
+  font-size: 1.125rem;
+  line-height: 1.6;
+  max-width: 34rem;
+  text-wrap: pretty;
+}
+
+/* The motif: a dot grid, like the robot's LED face and the dots a kolam is drawn around. */
+.dots {
+  background-image: radial-gradient(var(--dot) 1.4px, transparent 1.6px);
+  background-size: 22px 22px;
+}
+
+/* Plastic key — the tactile control style used for buttons that make sounds. */
+.key {
+  background: var(--panel);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 -3px 0 var(--line-strong),
+    0 1px 0 var(--line),
+    0 6px 14px -8px rgba(20, 26, 51, 0.25);
+  transition: transform 90ms ease, box-shadow 90ms ease;
+}
+.key:active,
+.key[data-pressed="true"] {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 -1px 0 var(--line-strong),
+    0 0 0 var(--line);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3rem;
+  padding: 0 1.4rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.98rem;
+  white-space: nowrap;
+  transition: background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 10px 28px -10px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.btn-primary:hover {
+  background: var(--accent-hi);
+}
+.btn-quiet {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.btn-quiet:hover {
+  box-shadow: var(--shadow);
+}
+.btn-muted {
+  background: transparent;
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+  cursor: default;
+}
+
+/* Compare page + legacy helpers */
+.glass {
+  background: var(--card);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: var(--shadow);
+}
 .gradient-text {
-  background: linear-gradient(100deg, var(--accent) 10%, var(--accent-2) 55%, #f472b6 95%);
+  background: linear-gradient(100deg, var(--accent) 0%, var(--accent-hi) 60%, var(--amber) 110%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-.glass {
-  background: var(--card);
-  backdrop-filter: blur(20px) saturate(170%);
-  -webkit-backdrop-filter: blur(20px) saturate(170%);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-}
-
-.grid-bg {
-  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent);
-}
-
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.marquee {
-  animation: marquee 40s linear infinite;
-}
-
 @keyframes breathe {
-  0%, 100% { opacity: 0.6; transform: scale(0.95); }
-  50% { opacity: 1; transform: scale(1.05); }
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
 }
 .breathe {
   animation: breathe 3s ease-in-out infinite;
 }
 
+@keyframes blink-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.blink {
+  animation: blink-dot 1.2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  .marquee, .breathe { animation: none; }
+  html {
+    scroll-behavior: auto;
+  }
+  .breathe,
+  .blink {
+    animation: none;
+  }
+}
+
+@keyframes expand {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+@keyframes collapse {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
 }

@@ -103,3 +103,9 @@ export function openHelp(page: HelpPage) {
   if (inTauri) void invoke("open_help", { page });
   else window.open({ "gemini-key": "https://aistudio.google.com/apikey", "groq-key": "https://console.groq.com/keys", "anthropic-key": "https://console.anthropic.com/settings/keys", ollama: "https://ollama.com/download" }[page], "_blank", "noopener");
 }
+
+/** Unlock a security lock (panic word, trap file, away) — needs Touch ID or password. */
+export async function unlockSecure(reason: string): Promise<boolean> {
+  if (!inTauri) return false;
+  return invoke<boolean>("unlock_secure", { reason });
+}

@@ -11,6 +11,10 @@ import re
 # s + a/e vowel(s) + s/z/sh + u/o/a vowel  →  sasu, saasu, sazu, sashu, sesu, sasoo…
 LATIN = re.compile(r"s[ae]{1,2}(?:s|z|sh)[uoa]")
 TAMIL = re.compile(r"(?:சா|ச)(?:சு|சி|ஸு|ஸ|சூ|சோ)")
+# Whole short Tamil words that are "Sasu" with the last vowel swallowed: சாச, சாஸ், சச
+TAMIL_SHORT = ("சாச", "சாஸ", "சச")
+# Words Whisper hears when "Sasu" is said alone in other accents
+LATIN_ALIASES = {"sauce", "sasse", "sassu", "saasu", "sasoo", "sassy", "sarsu"}
 STOP_WORDS = ("stop", "wait", "enough", "nil", "niruthu", "nirutthu", "நிறுத்து", "போதும்", "pothum")
 # Common words that contain the sound shape but aren't the wake word.
 NOT_WAKE = {"season", "seasons", "sasha", "sausage", "sazon", "seashore", "seashell"}
@@ -22,7 +26,7 @@ def find_wake(text: str) -> tuple[bool, str]:
     """(heard "Sasu", whatever was said after it)."""
     words = [w for w in _WORD.findall(text.lower()) if w not in NOT_WAKE]
     for i, w in enumerate(words):
-        if TAMIL.search(w):
+        if TAMIL.search(w) or (w.startswith(TAMIL_SHORT) and len(w) <= 5) or w in LATIN_ALIASES:
             return True, " ".join(words[i + 1 :])
     # Join neighbours too: "sa su", "heis azul" → "heisazul"
     for i in range(len(words)):

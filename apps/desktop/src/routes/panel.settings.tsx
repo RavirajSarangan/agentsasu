@@ -142,6 +142,24 @@ function SettingsPage() {
         <Row label="Do not disturb" hint="Robot freezes and stays silent.">
           <Switch label="Do not disturb" checked={s.dnd} onChange={(dnd) => updateSettings({ dnd })} />
         </Row>
+        <Row label="Dance to music" hint="When Spotify or Music plays, Sasu dances and shows the song.">
+          <Switch label="Dance to music" checked={s.dance} onChange={(dance) => updateSettings({ dance })} />
+        </Row>
+        <Row label="Fun replies" hint="A little Tamil masala in replies: “Semma!”, “Done, boss!”">
+          <Switch label="Fun replies" checked={s.funReplies} onChange={(funReplies) => updateSettings({ funReplies })} />
+        </Row>
+        <Row label="Break buddy" hint="A friendly stretch and water reminder.">
+          <Segmented
+            size="sm"
+            value={String(s.breakMinutes)}
+            onChange={(v) => updateSettings({ breakMinutes: Number(v) })}
+            options={[
+              { value: "0", label: "Off" },
+              { value: "30", label: "30 min" },
+              { value: "60", label: "1 hour" },
+            ]}
+          />
+        </Row>
         <Row label="Trackpad haptics" hint="A tap you can feel when Sasu needs you or finishes.">
           <Switch label="Trackpad haptics" checked={s.haptics} onChange={(haptics) => updateSettings({ haptics })} />
         </Row>

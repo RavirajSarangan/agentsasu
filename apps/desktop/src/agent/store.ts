@@ -19,6 +19,8 @@ export type AgentState = {
   enroll: EnrollStep | null;
   /** Live mic level 0–1 while listening. */
   level: number;
+  /** Song playing right now (the robot dances), or null. */
+  song: string | null;
   /** What left the Mac in the last turn. */
   privacy: PrivacyStat | null;
   log: { at: number; event: CoreEvent }[];
@@ -35,6 +37,7 @@ export const agentStore = new Store<AgentState>({
   voice: null,
   enroll: null,
   level: 0,
+  song: null,
   privacy: null,
   log: [],
 });
@@ -89,6 +92,7 @@ export function applyEvent(event: CoreEvent) {
     voice: event.type === "voice_status" ? event : s.voice,
     enroll: event.type === "enroll_progress" ? event : s.enroll,
     level: event.type === "turn_done" ? 0 : s.level,
+    song: event.type === "fun" && event.kind === "dance" ? (event.on ? event.detail || "music" : null) : s.song,
     privacy: event.type === "privacy" ? event : s.privacy,
     log: [{ at: Date.now(), event }, ...s.log].slice(0, LOG_LIMIT),
   }));

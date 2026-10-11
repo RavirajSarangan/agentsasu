@@ -36,6 +36,20 @@ async def system_volume(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     return ToolResult(True, f"Volume {level}")
 
 
+@tool(
+    "system_volume_step",
+    "Make the Mac louder or quieter by a step (-100…100).",
+    obj(["delta"], delta={"type": "integer", "minimum": -100, "maximum": 100}),
+    guest_ok=True,
+)
+async def system_volume_step(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+    prev = await _volume(ctx)
+    level = max(0, min(100, prev + int(args["delta"])))
+    await _set_volume(ctx, level)
+    ctx.journal.record(ctx.turn_id, "volume", prev=prev, level=level)
+    return ToolResult(True, f"Volume {level}")
+
+
 @inverse("volume", lambda d: f"volume {d['prev']} → {d['level']}")
 async def _undo_volume(d: dict[str, Any], ctx: ToolContext) -> None:
     await _set_volume(ctx, int(d["prev"]))

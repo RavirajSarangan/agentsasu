@@ -4,7 +4,7 @@ import { z } from "zod";
 
 export const Lang = z.enum(["en", "ta"]);
 export const Risk = z.enum(["safe", "confirm", "dangerous"]);
-export const LockReason = z.enum(["screen", "disabled", "user"]);
+export const LockReason = z.enum(["screen", "disabled", "user", "panic", "canary", "away"]);
 export type Lang = z.infer<typeof Lang>;
 export type LockReason = z.infer<typeof LockReason>;
 export type Risk = z.infer<typeof Risk>;
@@ -50,6 +50,10 @@ export const CoreEvent = z.discriminatedUnion("type", [
     size_mb: z.number().default(0),
     enrolled: z.boolean().default(false),
   }),
+  z.object({ type: z.literal("alarm"), kind: z.enum(["canary", "leak", "panic"]), detail: z.string() }),
+  z.object({ type: z.literal("intruder"), text: z.string(), score: z.number(), count: z.number() }),
+  z.object({ type: z.literal("fun"), kind: z.enum(["dance", "joke", "night"]), on: z.boolean().default(true), detail: z.string().default("") }),
+  z.object({ type: z.literal("idle") }),
   z.object({ type: z.literal("brain_status"), provider: z.string(), model: z.string(), ready: z.boolean(), keys: z.array(z.string()), voice: z.boolean() }),
 ]);
 export type CoreEvent = z.infer<typeof CoreEvent>;
@@ -66,7 +70,8 @@ export type UiCommand =
   | { type: "enroll_start" }
   | { type: "enroll_cancel" }
   | { type: "skill_run"; name: string }
-  | { type: "voice_setup" };
+  | { type: "voice_setup" }
+  | { type: "say_preview" };
 
 export const UI_COMMAND_TYPES = [
   "ptt_start",
@@ -81,4 +86,5 @@ export const UI_COMMAND_TYPES = [
   "enroll_cancel",
   "skill_run",
   "voice_setup",
+  "say_preview",
 ] as const satisfies readonly UiCommand["type"][];

@@ -32,6 +32,8 @@ export function cueFor(prev: RobotView, event: CoreEvent | LocalEvent): Cue | nu
       return "wake";
     case "undone":
       return "toggle";
+    case "alarm":
+      return "error";
     case "sleep":
     case "idle_timeout":
       return prev.state === "sleeping" ? null : "sleep";

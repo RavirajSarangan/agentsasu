@@ -37,6 +37,10 @@ OWNER = [[1.0, 0.1, 0.0, 0.2], [0.9, 0.15, 0.05, 0.25], [1.1, 0.05, 0.0, 0.18]]
         ("Hey Siri", False, ""),
         ("What is the weather like today?", False, ""),
         ("Downloads lair iroo kira pdf alum list panu.", False, ""),
+        # "சாசு" said alone, as Whisper heard it
+        ("Sauce", True, ""),
+        ("சாச", True, ""),
+        ("சாசனம் படி", False, ""),
     ],
 )
 def test_wake_word(text: str, heard: bool, rest: str) -> None:
@@ -101,7 +105,7 @@ def test_stranger_voice(bare_client: TestClient, mode: str) -> None:
 def test_owner_voice_goes_through(bare_client: TestClient) -> None:
     core = bare_client.app.state.core  # type: ignore[attr-defined]
     core.vault.save(Voiceprint.enroll(OWNER))
-    owner = Heard("open Safari", "en", [1.0, 0.12, 0.02, 0.21], 2.0)
+    owner = Heard("write a poem about the sea", "en", [1.0, 0.12, 0.02, 0.21], 2.0)
     with bare_client.websocket_connect(f"/ws?t={TOKEN}") as ws:
         events_until(ws, "voice_status")
         bare_client.portal.call(core.voice_command, owner)  # type: ignore[union-attr]

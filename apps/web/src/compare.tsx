@@ -5,6 +5,9 @@ import { createRoot } from "react-dom/client";
 import { Footer, Nav } from "./Layout";
 import { Robot } from "./Robot";
 import "./styles.css";
+import { applyStoredTheme } from "./theme";
+
+applyStoredTheme();
 
 type Cell = "yes" | "partial" | "no" | "nd";
 type RowDef = { feature: string; note?: string; cells: [Cell, Cell, Cell, Cell, Cell, Cell]; refs?: number[]; detail?: Partial<Record<number, string>> };

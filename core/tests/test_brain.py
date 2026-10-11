@@ -319,7 +319,9 @@ def test_real_turn_end_to_end(bare_client: TestClient, tmp_path: Path) -> None:
             while not seen or seen[-1]["type"] != "brain_status":
                 seen.append(json.loads(ws.receive_text()))
             bare_client.portal.call(core.control, ControlSecret(provider="gemini", key="k" * 39))  # type: ignore[union-attr]
-            ws.send_text(json.dumps({"type": "text_command", "text": "volume 30 pannu"}))
+            ws.send_text(
+                json.dumps({"type": "text_command", "text": "make it a bit cosier in here"})
+            )
             events: list[dict[str, Any]] = []
             while not events or events[-1]["type"] != "turn_done":
                 events.append(json.loads(ws.receive_text()))

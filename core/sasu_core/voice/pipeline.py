@@ -36,7 +36,7 @@ class Heard:
 
 
 class Callbacks:
-    async def on_wake(self) -> None: ...
+    async def on_wake(self, command_follows: bool) -> None: ...
     async def on_command(self, heard: Heard) -> None: ...
     async def on_stop(self) -> None: ...
     async def on_level(self, rms: float) -> None: ...
@@ -59,7 +59,7 @@ class VoicePipeline:
         vad_cfg = so.VadModelConfig()
         vad_cfg.silero_vad.model = p("silero_vad.onnx")
         vad_cfg.silero_vad.threshold = 0.5
-        vad_cfg.silero_vad.min_silence_duration = 0.55
+        vad_cfg.silero_vad.min_silence_duration = 0.4
         vad_cfg.silero_vad.min_speech_duration = 0.25
         vad_cfg.silero_vad.max_speech_duration = 15
         vad_cfg.sample_rate = SR
@@ -72,12 +72,17 @@ class VoicePipeline:
         )  # fmt: skip
         self.turbo = so.OfflineRecognizer.from_whisper(
             encoder=p("turbo-encoder.int8.onnx"), decoder=p("turbo-decoder.int8.onnx"),
-            tokens=p("turbo-tokens.txt"), language="", num_threads=4,
+            tokens=p("turbo-tokens.txt"), language="", num_threads=8,
         )  # fmt: skip
         self._turbo_en: Any = None
+        self._forced: dict[str, Any] = {}  # (model, lang) recognizers built on demand
+        # The language you mostly speak; used when Whisper guesses a third language.
+        self.prefer_lang = "en"
+        # Woken in Tamil → decode the next command as Tamil.
+        self.next_lang: str | None = None
         self._turbo_args = dict(
             encoder=p("turbo-encoder.int8.onnx"), decoder=p("turbo-decoder.int8.onnx"),
-            tokens=p("turbo-tokens.txt"), num_threads=4,
+            tokens=p("turbo-tokens.txt"), num_threads=8,
         )  # fmt: skip
         spk_cfg = so.SpeakerEmbeddingExtractorConfig(
             model=p("wespeaker_en_voxceleb_resnet34.onnx"), num_threads=2
@@ -95,6 +100,26 @@ class VoicePipeline:
         self._lock = threading.Lock()
         self._last_level = 0.0
         self._overflow: list[np.ndarray] = []
+        self.arm_timeout = 8.0
+        # After Sasu finishes speaking, keep listening for a follow-up (no wake word).
+        self.follow_up = False
+        self.follow_timeout = 6.0
+        self._warm_up()
+
+    def _warm_up(self) -> None:
+        """Run each model once so the first real command isn't slow."""
+        noise = (np.random.default_rng(0).standard_normal(SR // 2) * 0.01).astype(np.float32)
+        for rec in (self.tiny, self.turbo):
+            s = rec.create_stream()
+            s.accept_waveform(SR, noise)
+            rec.decode_stream(s)
+        self._embed(np.concatenate([noise, noise]))
+
+    def warm_tamil(self) -> None:
+        """Build the Tamil-forced models up front so Tamil commands are as fast as English."""
+        noise = (np.random.default_rng(1).standard_normal(SR // 2) * 0.01).astype(np.float32)
+        for model in ("tiny", "turbo"):
+            self.decode_as(model, "ta", noise)
 
     # ── control ────────────────────────────────────────────────────────────
     def start(self) -> None:
@@ -109,6 +134,7 @@ class VoicePipeline:
         )
         self._stream.start()
         self._task = self.loop.create_task(self._run())
+        self.loop.run_in_executor(None, self.warm_tamil)
 
     def _offer(self, data: np.ndarray) -> None:
         if not self._queue.full():
@@ -124,18 +150,23 @@ class VoicePipeline:
         if self._task:
             self._task.cancel()
 
-    def arm(self) -> None:
-        """Treat the next utterance as a command (wake word, hotkey or click)."""
+    def arm(self, timeout: float = 8.0) -> None:
+        """Treat the next utterance as a command (wake word, hotkey, click, follow-up)."""
         self.mode = "command"
         self.armed_at = time.monotonic()
+        self.arm_timeout = timeout
         self.vad.reset()
 
     def set_speaking(self, speaking: bool) -> None:
         if speaking:
             self.mode = "speaking"
         elif self.mode == "speaking":
-            self.mode = "idle"
-            self.vad.reset()
+            if self.follow_up:
+                self.follow_up = False
+                self.arm(self.follow_timeout)
+            else:
+                self.mode = "idle"
+                self.vad.reset()
 
     def set_enroll(self, on: bool) -> None:
         self.mode = "enroll" if on else "idle"
@@ -155,20 +186,34 @@ class VoicePipeline:
             and raw not in {"en", "ta"}
             and not any("\u0b80" <= c <= "\u0bff" for c in text)
         ):
-            # Whisper sometimes guesses a third language (e.g. "es" for "Hey Sasu"); Sasu only
-            # speaks English and Tamil, so decode again as English.
-            return self._decode_en(samples), "en"
+            # Whisper sometimes guesses a third language ("ja" for "Sasu", "id" for "satham
+            # kurai"). Sasu speaks English and Tamil, so decode again in the preferred one.
+            lang = self.prefer_lang if self.prefer_lang in ("en", "ta") else "en"
+            return self.decode_as("turbo", lang, samples), lang
         return text, _lang(raw, text)
 
-    def _decode_en(self, samples: np.ndarray) -> str:
+    def _recognizer(self, model: str, lang: str) -> Any:
         import sherpa_onnx as so
 
-        if self._turbo_en is None:
-            self._turbo_en = so.OfflineRecognizer.from_whisper(language="en", **self._turbo_args)
+        key = f"{model}:{lang}"
+        if key not in self._forced:
+            args = dict(self._turbo_args)
+            if model == "tiny":
+                args.update(
+                    encoder=str(args["encoder"]).replace("turbo", "tiny"),
+                    decoder=str(args["decoder"]).replace("turbo", "tiny"),
+                    tokens=str(args["tokens"]).replace("turbo", "tiny"),
+                    num_threads=2,
+                )
+            self._forced[key] = so.OfflineRecognizer.from_whisper(language=lang, **args)
+        return self._forced[key]
+
+    def decode_as(self, model: str, lang: str, samples: np.ndarray) -> str:
+        rec = self._recognizer(model, lang)
         with self._lock:
-            s = self._turbo_en.create_stream()
+            s = rec.create_stream()
             s.accept_waveform(SR, samples)
-            self._turbo_en.decode_stream(s)
+            rec.decode_stream(s)
             return str(s.result.text).strip()
 
     def feed(self, samples: np.ndarray) -> None:
@@ -180,7 +225,7 @@ class VoicePipeline:
         self._task = self.loop.create_task(self._run())
 
     def _embed(self, samples: np.ndarray) -> list[float] | None:
-        if len(samples) < SR * 0.8:
+        if len(samples) < SR * 0.5:
             return None
         with self._lock:
             s = self.speaker.create_stream()
@@ -235,27 +280,56 @@ class VoicePipeline:
             return
         if self.mode == "command":
             self.mode = "idle"
-            text, lang = await run(None, self._decode, self.turbo, samples)
+            if self.next_lang == "ta":
+                self.next_lang = None
+                text = await run(None, self.decode_as, "turbo", "ta", samples)
+                lang = "ta"
+            else:
+                text, lang = await run(None, self._decode, self.turbo, samples)
+            if not text:
+                self.arm(self.arm_timeout)
+                return
+            heard, rest = find_wake(text)
+            if heard and len(rest.split()) == 0:
+                # "Hey Sasu" again: still listening, not a command.
+                self.arm()
+                await self.cb.on_wake(command_follows=False)
+                return
             emb = await run(None, self._embed, samples)
-            if text:
-                await self.cb.on_command(Heard(text, lang, emb, secs))
+            await self.cb.on_command(Heard(rest if heard and rest else text, lang, emb, secs))
             return
         # idle: wake word, possibly with the command in the same breath
         if secs > 12:
             return
-        quick, _ = await run(None, self._decode, self.tiny, samples)
-        heard, rest = find_wake(quick)
-        if not heard:
-            return
-        if len(rest.split()) >= 2:
+        if secs > 1.8:
+            # Long enough to hold a command too: one accurate pass instead of two.
             text, lang = await run(None, self._decode, self.turbo, samples)
-            _, cmd = find_wake(text)
+            heard, rest = find_wake(text)
+            if not heard:
+                return
+        else:
+            quick, qlang = await run(None, self._decode, self.tiny, samples)
+            heard, rest = find_wake(quick)
+            if not heard:
+                # Short Tamil "சாசு" often gets mis-detected as another language: try as Tamil.
+                quick = await run(None, self.decode_as, "tiny", "ta", samples)
+                heard, rest = find_wake(quick)
+                qlang = "ta"
+                if not heard:
+                    return
+            if qlang == "ta" or any("\u0b80" <= c <= "\u0bff" for c in quick):
+                self.next_lang = "ta"
+            text, lang = quick, "ta" if self.next_lang == "ta" else "en"
+            if len(rest.split()) >= 2:
+                text, lang = await run(None, self._decode, self.turbo, samples)
+                _, rest = find_wake(text)
+        if len(rest.split()) >= 1:
             emb = await run(None, self._embed, samples)
-            await self.cb.on_wake()
-            await self.cb.on_command(Heard(cmd or text, lang, emb, secs))
+            await self.cb.on_wake(command_follows=True)
+            await self.cb.on_command(Heard(rest, lang, emb, secs))
         else:
             self.arm()
-            await self.cb.on_wake()
+            await self.cb.on_wake(command_follows=False)
 
 
 Factory = Callable[[Path, Callbacks, asyncio.AbstractEventLoop], VoicePipeline]

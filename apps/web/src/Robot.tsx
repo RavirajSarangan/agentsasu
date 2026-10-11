@@ -3,17 +3,17 @@ import { RobotHead, type RobotHeadShape, type RobotHeadState } from "robot-heads
 
 export const STATE_COLOR: Record<RobotHeadState, string> = {
   idle: "var(--accent)",
-  listening: "#30c35a",
-  thinking: "#f0a020",
+  listening: "var(--signal)",
+  thinking: "var(--amber)",
   searching: "#1fb6d8",
   working: "var(--accent)",
-  speaking: "#a35cf0",
-  happy: "#30c35a",
-  error: "#ef4444",
-  sleeping: "#8e8e93",
+  speaking: "#8b5cf6",
+  happy: "var(--signal)",
+  error: "var(--danger)",
+  sleeping: "var(--faint)",
 };
 
-/** Robot with a breathing, state-coloured halo. Never clipped. */
+/** The robot, optionally with a soft state-coloured glow. Never clipped by its parent. */
 export function Robot({
   state,
   size,
@@ -40,9 +40,8 @@ export function Robot({
           aria-hidden
           className="breathe pointer-events-none absolute rounded-full"
           style={{
-            inset: -size * 0.45,
-            background: `radial-gradient(closest-side, color-mix(in srgb, ${color} 40%, transparent), transparent)`,
-            filter: "blur(10px)",
+            inset: -size * 0.4,
+            background: `radial-gradient(closest-side, color-mix(in srgb, ${color} 30%, transparent), transparent)`,
             transition: "background 500ms ease",
           }}
         />

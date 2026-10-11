@@ -7,11 +7,12 @@ protocol and file formats as the Python core, and is checked against it by
 
 | Phase | What | Status |
 | --- | --- | --- |
-| 1 | Local server (127.0.0.1, token, origin checks, rate limits), stdin control channel, hash-chained audit log (same SQLite file), secret redaction | ✅ done — 268 KB binary |
-| 2a | Policy (paths, shell commands incl. a faithful `shlex` port), roles, trap files, leak guard, instant-command parser, undo journal | ✅ done — parity-tested on a large corpus |
-| 2b | Tools and the Executor (policy → approval → run → journal → audit), turns over the WebSocket | next |
-| 3 | Voice: sherpa-onnx (VAD, Whisper, voiceprint), AVAudioEngine mic, AVSpeechSynthesizer, Touch ID | |
-| 4 | AI brain (URLSession, OpenAI-compatible), then the app switches to this core | |
+| 1 | Local server (127.0.0.1, token, origin checks, rate limits), stdin control channel, hash-chained audit log (same SQLite file), secret redaction | ✅ done |
+| 2a | Policy (paths, shell commands incl. a faithful `shlex` port), roles, trap files, leak guard, instant-command parser, undo journal | ✅ done — parity-tested on large corpora |
+| 2b | All 23 tools with undo; the Executor (traps → leak guard → policy → role → approval / Touch ID → run → journal → audit); turns, undo, cancel and lock over the WebSocket | ✅ done — a 12-command script matches Python event for event |
+| 3a | Speech engine: the same sherpa-onnx build as Python (PyPI, pinned); Whisper tiny/turbo, voice activity, voiceprints, wake and stop words | ✅ done — same transcripts, segments and voiceprints on the same audio |
+| 3b | Listening state machine, encrypted voiceprint vault, live mic (AVAudioEngine), spoken replies (Tara/Vani, half-duplex), voice turns for owner / family / kid / guest, push-to-talk | ✅ done — spoken requests end to end with a Python-enrolled voice |
+| 4 | AI brain (URLSession, OpenAI-compatible); briefing, focus, memory, meetings and the other assistants; then the app switches to this core | next |
 | 5 | Optional: SwiftUI shell, App Intents / Shortcuts | |
 
 ```bash

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from . import assist, briefing, care, extras, fastpath, focus, lifelog
+from . import assist, briefing, care, extras, fastpath, focus, lifelog, tidy
 from . import memory as mem
 from .brain.agent import Agent, Executor, Turn
 from .brain.providers import SPECS, ChatClient, LLMError, pick_model
@@ -180,7 +180,8 @@ class Core:
         self.help_delay = 10.0  # Amma mode "help": a little longer to cancel
         self.care_store = care.CareStore(data_dir / "care.bin", vault.aead)
         self.care = care.Tracker()
-        self.relations: dict[str, str] = {}  # "son" → "Raviraj" (Settings → Family → Care)
+        self.relations: dict[str, str] = {}
+        self.home = Path.home()  # where Desktop / Downloads live (tests point it elsewhere)  # "son" → "Raviraj" (Settings → Family → Care)
         self.clock = __import__("time").time
         self._siren_turn: str | None = None
         self._strangers: deque[float] = deque(maxlen=10)
@@ -335,6 +336,9 @@ class Core:
                 return
             if extras.is_read(text):
                 self._start(self.read_aloud())
+                return
+            if (where := tidy.target(text)) is not None and len(text.split()) <= 8:
+                self._start(self.tidy_turn(where, text, lang or detect_lang(text)))
                 return
             if assist.TRANSLATE_ON.search(text) and len(text.split()) <= 5:
                 self._start(self.set_translate(True))
@@ -572,6 +576,48 @@ class Core:
         if out:
             await self.speak(out, "ta" if assist.TAMIL.search(out) else lang)
         await self.hub.emit(TurnDone(ok=bool(out)))
+
+    async def tidy_turn(self, where: str, text: str, lang: Lang) -> None:
+        """Sort Desktop / Downloads: plan → one yes → the normal file tools (undoable)."""
+        from .protocol import PlanPreview
+
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role=self._role)
+        self.audit.append("command", source="owner", text=text, turn=turn.id, fast="tidy")
+        await self.hub.emit(Transcript(text=text, lang=lang))
+        await self.hub.emit(Thinking())
+        folder = self.home / where
+        plan = await asyncio.to_thread(tidy.plan_for, folder) if folder.is_dir() else None
+        if plan is None or plan.count == 0:
+            await self.speak(
+                f"{where} ஏற்கனவே சுத்தமா இருக்கு!" if lang == "ta" else f"{where} is already tidy.",
+                lang,
+            )
+            await self.hub.emit(TurnDone(ok=True))
+            return
+        await self.hub.emit(PlanPreview(id=turn.id, steps=tidy.steps(plan, lang)))
+        ask = (
+            f"{where}-ல {plan.count} file ஒழுங்கு படுத்தட்டுமா?"
+            if lang == "ta"
+            else f"Tidy {plan.count} files in {where}?"
+        )
+        if not await self.approve(ask, "confirm", lang, False):
+            await self.speak(
+                "சரி, எதுவும் மாத்தல." if lang == "ta" else "Okay, I left it as it is.", lang
+            )
+            await self.hub.emit(TurnDone(ok=False))
+            return
+        turn.plan_approved = True
+        ex = self._executor()
+        ok = True
+        for name, args in tidy.calls(plan):
+            ok = (await ex.call(name, args, turn)).startswith("OK") and ok
+        await self.speak(tidy.summary(plan, lang), lang)
+        actions = self.journal.pending(turn.id)
+        if actions:
+            await self.hub.emit(
+                UndoAvailable(turn_id=turn.id, actions=[a.describe() for a in actions])
+            )
+        await self.hub.emit(TurnDone(ok=ok))
 
     async def tell_joke(self, lang: Lang) -> None:
         await self.hub.emit(Fun(kind="joke"))

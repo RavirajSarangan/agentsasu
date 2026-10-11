@@ -43,6 +43,7 @@ No buttons, no commands to learn. Speak the way you'd talk to a friend.
 | “Inniku diary” | Tanglish | Takes a spoken diary entry, encrypted |
 | “Amma-ku 8 mani BP maathirai reminder vai” | Tanglish | At 8, asks Amma slowly in Tamil; texts you if she misses it |
 | “மகனுக்கு போன் பண்ணு” | தமிழ் | Finds the son in Contacts and starts a FaceTime audio call (after a yes) |
+| “Desktop clean pannu” | Tanglish | Sorts Desktop into Screenshots, PDFs, Images…, bins duplicates (shows the plan; undoable) |
 | “Sasu, undo” | any | Puts back whatever it just changed |
 
 Common requests (music, volume, opening apps, time, battery, dark mode) run **on your Mac in about 1.5 s**, without any AI service.

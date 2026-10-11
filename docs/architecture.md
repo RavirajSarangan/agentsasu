@@ -88,78 +88,60 @@ Verified `robot-heads@0.3.0` API (MIT, React ≥18, canvas, no deps):
 ## 2. Project structure (pnpm monorepo)
 
 ```
-sasu/
-├─ package.json                # pnpm workspaces, root scripts
-├─ pnpm-workspace.yaml
-├─ README.md  LICENSE(MIT)  CONTRIBUTING.md  CLAUDE.md
-├─ .github/workflows/{ci.yml,release.yml}
+agentsasu/
+├─ package.json  pnpm-workspace.yaml  .nvmrc    # pnpm workspaces (Node 24), root scripts
+├─ README.md  LICENSE  CONTRIBUTING.md  SECURITY.md  PRIVACY.md  TERMS.md  CLAUDE.md
+├─ .github/                     # CI (ci.yml), issue and PR templates
+├─ assets/                      # app icon, DMG background
+├─ scripts/release-mac.sh       # PyInstaller core → .app → DMG
+├─ docs/                        # this plan, MASTER_PROMPT.md, README images
 ├─ apps/
-│  └─ desktop/
-│     ├─ index.html  vite.config.ts  tsconfig.json
-│     ├─ src/
-│     │  ├─ main.tsx                  # Router + QueryClient providers
-│     │  ├─ routes/                   # TanStack Router file routes
-│     │  │  ├─ __root.tsx
-│     │  │  ├─ overlay.tsx            # robot window
-│     │  │  ├─ panel.tsx              # layout with sidebar
-│     │  │  ├─ panel.chat.tsx
-│     │  │  ├─ panel.history.tsx
-│     │  │  ├─ panel.settings.tsx
-│     │  │  ├─ panel.permissions.tsx  # macOS permission wizard
-│     │  │  ├─ panel.tools.tsx        # enable/disable tools, risk tiers
-│     │  │  ├─ panel.audit.tsx        # TanStack Table
-│     │  │  └─ panel.robot-lab.tsx
-│     │  ├─ robot/
-│     │  │  ├─ SasuRobot.tsx          # wraps <RobotHead>, all props
-│     │  │  ├─ stateMachine.ts        # event → state, timers
-│     │  │  ├─ themes.ts
-│     │  │  └─ Bubble.tsx             # caption / confirm buttons
-│     │  ├─ agent/
-│     │  │  ├─ socket.ts              # WS client, reconnect, token
-│     │  │  ├─ protocol.ts            # zod schemas (mirror of python)
-│     │  │  └─ store.ts               # TanStack Store
-│     │  ├─ api/                      # TanStack Query hooks (REST)
-│     │  ├─ i18n/{en.json,ta.json}
-│     │  └─ styles/
-│     └─ src-tauri/
-│        ├─ Cargo.toml  tauri.conf.json  Info.plist  Entitlements.plist
-│        ├─ capabilities/{overlay.json,panel.json}
-│        ├─ binaries/sasu-core-aarch64-apple-darwin   # built sidecar
-│        └─ src/
-│           ├─ main.rs  lib.rs
-│           ├─ sidecar.rs      # spawn/restart python, port+token handshake
-│           ├─ windows.rs      # overlay/panel creation, positioning
-│           ├─ hotkeys.rs  tray.rs
-│           ├─ permissions.rs  # AXIsProcessTrusted, mic, CGPreflightScreenCaptureAccess
-│           └─ secrets.rs      # keychain (API keys)
-├─ core/                        # Python sidecar (uv project)
-│  ├─ pyproject.toml  uv.lock
+│  ├─ desktop/                  # the Mac app (Tauri 2)
+│  │  ├─ src/
+│  │  │  ├─ main.tsx            # routes by window label (overlay | panel), hash history
+│  │  │  ├─ tauri.ts            # typed wrappers for Rust commands
+│  │  │  ├─ routes/             # overlay, onboarding, panel.{index,memory,skills,
+│  │  │  │                      #   settings,security,robot-lab}
+│  │  │  ├─ agent/              # connection (WS + REST), protocol (zod mirror),
+│  │  │  │                      #   store (TanStack Store + timers), timeline
+│  │  │  ├─ robot/              # SasuRobot, Bubble, stateMachine (pure), settings,
+│  │  │  │                      #   themes, Halo, DanceFx, chips
+│  │  │  ├─ settings/           # Brain, Voice, Family, Personal, Care (Amma mode),
+│  │  │  │                      #   SecurityExtras
+│  │  │  ├─ sound/              # cues + player (overlay window only)
+│  │  │  ├─ ui/                 # Button, Card, Segmented, Slider, Switch
+│  │  │  └─ styles/index.css    # UI tokens
+│  │  └─ src-tauri/
+│  │     ├─ tauri.conf.json  Info.plist  build.rs  capabilities/{overlay,panel}.json
+│  │     └─ src/                # sidecar (spawn core, stdin control), windows, fly,
+│  │                            #   tray, auth (Touch ID), keys + secrets (Keychain),
+│  │                            #   session (screen lock), permissions, haptics
+│  ├─ web/                      # sasu-web.vercel.app
+│  │  ├─ index.html compare.html privacy.html terms.html   # pages
+│  │  ├─ og.html dmg.html banner.html                      # render-only (images)
+│  │  ├─ src/sections/          # Hero, SayIt, Gallery, UndoDemo, Guard, Amma, Sounds…
+│  │  ├─ public/                # shots/*.webp, og.png, sitemap, robots, llms.txt
+│  │  └─ scripts/               # render-assets.py, render-shots.py (Playwright)
+│  └─ mac/                      # native Swift core (replacing core/ step by step)
+│     ├─ Package.swift  scripts/fetch-sherpa.sh
+│     └─ Sources/{SasuKit,sasu-core-swift,CSherpaOnnx}
+├─ core/                        # Python agent (uv project), runs as the app's sidecar
+│  ├─ pyproject.toml  uv.lock  build_sidecar.py  sidecar_entry.py
 │  ├─ sasu_core/
-│  │  ├─ __main__.py            # prints {"port","token"} on stdout → Rust
-│  │  ├─ server.py              # FastAPI: /ws, /api/*
-│  │  ├─ protocol.py            # pydantic event models (single source)
-│  │  ├─ config.py
-│  │  ├─ audio/{mic.py,vad.py}
-│  │  ├─ wake/{detector.py,models/hey_sasu.onnx}
-│  │  ├─ stt/{whisper_mlx.py,base.py}
-│  │  ├─ tts/{kokoro_en.py,parler_ta.py,edge_fallback.py,base.py}
-│  │  ├─ brain/
-│  │  │  ├─ agent.py            # loop, step limit, cancellation
-│  │  │  ├─ prompts.py          # system prompt (bilingual persona)
-│  │  │  ├─ memory.py           # SQLite + simple facts store
-│  │  │  └─ providers/{claude.py,ollama.py,openai_compat.py,base.py}
-│  │  ├─ tools/
-│  │  │  ├─ registry.py         # @tool decorator, JSON schema, risk tier
-│  │  │  ├─ apps.py  applescript.py  shell.py  files.py
-│  │  │  ├─ browser.py  screen.py  input.py  system.py
-│  │  │  ├─ clipboard.py  productivity.py  web.py  mcp_client.py
-│  │  ├─ safety/{policy.py,confirm.py,audit.py}
-│  │  └─ store/db.py
-│  ├─ tests/
-│  └─ build_sidecar.py          # PyInstaller → src-tauri/binaries/
-├─ packages/
-│  └─ protocol/                 # generated TS types from pydantic JSON schema
-└─ tools/wakeword/              # notebook + script to train hey_sasu.onnx
+│  │  ├─ __main__.py  server.py # handshake on stdout; FastAPI /ws + /api/*
+│  │  ├─ protocol.py            # pydantic events (source of truth)
+│  │  ├─ core.py  hub.py        # turns, approvals, locks, watchers; event fan-out
+│  │  ├─ brain/                 # agent (Executor), providers, prompts, contract
+│  │  ├─ tools/                 # registry + apps, files, shell, web, media, system,
+│  │  │                         #   windows, clipboard, keyboard, messages, contacts…
+│  │  ├─ security/              # policy, roles, voiceprint, audit, canary, leakguard, redact
+│  │  ├─ voice/  tts/           # sherpa-onnx pipeline + wake; macOS `say`
+│  │  ├─ undo.py  memory.py  skills.py
+│  │  └─ fastpath.py  assist.py  briefing.py  focus.py  lifelog.py  care.py  fun.py  extras.py
+│  └─ tests/                    # pytest (FakeRun, silent), incl. Swift parity tests
+└─ packages/
+   ├─ protocol/schema.json      # generated by `pnpm protocol:gen`
+   └─ brand/                    # themes + synthesized sound packs
 ```
 
 ---
@@ -170,7 +152,7 @@ sasu/
 **UI → python:** `ptt_start`, `ptt_stop`, `text_command{text}`, `confirm_response{id,approved}`, `cancel`, `set_settings{...}`.
 Pydantic is the source of truth → `packages/protocol` TS generated with `datamodel-code-generator`/`json-schema-to-zod` in CI.
 
-**Tool risk tiers (safety/policy.py):**
+**Tool risk tiers (security/policy.py):**
 - `safe` (auto): open app, volume, brightness, read clipboard, web search, screenshot, list files, time/weather.
 - `confirm` (voice/click yes): write/move files, send messages/email, type into apps, run shell commands from allowlist, browser form submit, quit apps.
 - `dangerous` (always confirm + show full command, never by voice alone): `rm`, `sudo`, arbitrary shell, system settings, purchases, anything outside `~`.

@@ -119,7 +119,12 @@ An assistant that can touch your whole Mac has to be hard to misuse: by people n
 | **Tamper-evident log** | Every action is sealed in a hash chain; edits show up on the Security page. |
 | **Locked-down app** | Local server on 127.0.0.1 only, a secret token per launch passed over stdin, strict CSP, per-window permissions. |
 
-<p align="center"><img src="docs/images/panel-security.png" width="70%" alt="Security page"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/shots/security-dark@2x.webp">
+    <img src="apps/web/public/shots/security-light@2x.webp" width="70%" alt="Security page: voice lock, tamper-evident log, trap files, intruder photo, away lock and panic word">
+  </picture>
+</p>
 
 ### Privacy
 
@@ -193,12 +198,17 @@ Needs macOS 13+ on Apple Silicon, Node 24, pnpm 10, Rust and [uv](https://docs.a
 ## Project layout
 
 ```
-apps/desktop/   Tauri app: React UI + src-tauri (Rust shell)
-apps/web/       Landing site, compare, privacy and terms pages
-core/           Python agent: voice, brain, tools, security, undo
-packages/       Shared protocol schema and the sound kit
-docs/           Architecture and images
+apps/desktop/   Mac app: React UI + src-tauri (Rust shell)
+apps/web/       Website: landing, compare, privacy, terms, screenshots
+apps/mac/       Native Swift core, replacing core/ step by step
+core/           Python agent: voice, brain, tools, security, undo, Amma mode
+packages/       Shared protocol schema, themes and the sound kit
+scripts/        Mac release (DMG) script
+assets/         App icon and DMG background
+docs/           Architecture and README images
 ```
+
+Full tree: [docs/architecture.md](docs/architecture.md#2-project-structure-pnpm-monorepo).
 
 ## Roadmap
 

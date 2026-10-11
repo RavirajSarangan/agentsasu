@@ -1,7 +1,7 @@
 import Foundation
 import Network
 
-public let sasuVersion = "0.4.0"
+public let sasuVersion = "0.4.1"
 
 /// The local server the UI talks to: 127.0.0.1 only, a secret token, allowed origins.
 /// Phase 1 of the Swift core: transport, security checks and audit; commands come next.

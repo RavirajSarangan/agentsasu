@@ -31,3 +31,7 @@ Plan: docs/architecture.md. Work phase by phase (docs/MASTER_PROMPT.md); stop af
   voiceprint. Models in <data_dir>/models, downloaded on "Turn on voice". Wake matching is
   sound-shape based (voice/wake.py) because tiny Whisper mangles "Hey Sasu".
 - Tests set core.speaker.enabled=False so nothing speaks; WS handshake = ready, brain_status, voice_status.
+- Swift migration (apps/mac, SwiftPM, CLT only): phase 1 = server + audit + redaction. Keep it
+  byte-compatible with Python (PyJSON.dumps mirrors json.dumps(sort_keys, ensure_ascii=False);
+  digest = sha256(prev|at:.6f|kind|data)). core/tests/test_swift_core.py is the parity contract.
+- Mac release: scripts/release-mac.sh (PyInstaller core → Resources/sasu-core, appdmg DMG).

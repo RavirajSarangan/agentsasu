@@ -19,3 +19,6 @@ core/dist/
 # Built core bundled into the app (core/build_sidecar.py)
 apps/desktop/src-tauri/resources/sasu-core/
 core/build/
+
+# Swift build output
+apps/mac/.build/

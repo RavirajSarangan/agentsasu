@@ -2,11 +2,13 @@ import * as Accordion from "@radix-ui/react-accordion";
 import { Plus } from "lucide-react";
 
 const QA = [
+  ["What is Sasu?", "Sasu is a free, open-source voice assistant for the Mac. A little robot lives in the corner of your screen; say “Hey Sasu” in English, Tamil or Tanglish and it opens apps, finds and sorts files, changes settings, plays music, reminds your parents to take their medicine and more. It only obeys your voice, asks before anything risky, and everything it does can be undone."],
   ["Is it really free?", "Yes. Sasu is open source under the MIT license. It works with a free Google Gemini or Groq key, or fully offline with Ollama."],
   ["Does my voice go to the cloud?", "No. Wake word, speech recognition and your voiceprint all run on your Mac. With a cloud AI, only the text of your request is sent, and the privacy meter shows exactly how much."],
   ["Do I need to download anything big?", "Voice is a one-time download of about 700 MB that stays on your Mac. Spoken replies use the voices already built into macOS."],
   ["Can someone else use it on my Mac?", "Only as a guest. Other voices can ask the time or play music. Everything else needs your voice, and risky steps need Touch ID."],
   ["What if it does something wrong?", "Say “Sasu, undo” or press ⌘⌥Z and it reverses what it just did. ⌘⌥Esc stops everything instantly."],
+  ["What is Amma mode?", "A care mode for elderly family members. Enrol them as Elder and Sasu speaks to them slowly in Tamil with big text, reminds them to take their medicine, texts you if a dose is missed, calls family by voice and sends an alert if they say “udhavi” (help)."],
   ["Which Macs?", "Apple Silicon Macs with macOS 13 Ventura or newer."],
   [
     "macOS says Sasu “can't be opened”?",
@@ -16,7 +18,7 @@ const QA = [
 
 export function Faq() {
   return (
-    <section id="faq" className="px-4 py-28 sm:px-6">
+    <section id="faq" className="px-4 py-16 sm:px-6 sm:py-28">
       <div className="mx-auto grid max-w-[1180px] gap-12 lg:grid-cols-[0.8fr_1.2fr]">
         <h2 className="title text-[clamp(2.2rem,4.6vw,3.6rem)]">Questions people ask</h2>
         <Accordion.Root type="single" collapsible defaultValue="0" className="border-t border-[var(--line)]">

@@ -81,7 +81,7 @@ export function Fun() {
 
   const b = bubble[mode];
   return (
-    <section id="fun" className="px-4 py-28 sm:px-6">
+    <section id="fun" className="px-4 py-16 sm:px-6 sm:py-28">
       <div className="mx-auto grid max-w-[1180px] items-center gap-14 lg:grid-cols-[1fr_1fr]">
         <div>
           <h2 className="title text-[clamp(2.2rem,4.6vw,3.6rem)]">Serious about security. Not serious about everything.</h2>

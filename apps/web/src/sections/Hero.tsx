@@ -1,11 +1,21 @@
+import { Languages, Lock, ShieldCheck, Undo2 } from "lucide-react";
 import { motion } from "motion/react";
 import { DownloadButton, StarButton } from "../Layout";
 import { Desk } from "./Desk";
 
+const TRUST = [
+  { Icon: Languages, text: "English · தமிழ் · Tanglish" },
+  { Icon: Lock, text: "Voice stays on your Mac" },
+  { Icon: ShieldCheck, text: "Only your voice" },
+  { Icon: Undo2, text: "Undo anything" },
+];
+
 export function Hero() {
   return (
-    <section id="top" className="relative px-4 pb-24 pt-32 sm:px-6 sm:pt-36">
+    <section id="top" className="relative overflow-x-clip px-4 pb-12 pt-28 sm:px-6 sm:pb-24 sm:pt-36">
       <div aria-hidden className="dots pointer-events-none absolute inset-x-0 top-0 h-[560px] [mask-image:linear-gradient(to_bottom,black,transparent)]" />
+      {/* soft aurora behind the headline */}
+      <div aria-hidden className="aurora pointer-events-none absolute left-1/2 top-0 h-[520px] w-[min(1100px,140vw)] -translate-x-1/2" />
       <div className="relative mx-auto max-w-[1180px]">
         <div className="grid items-end gap-10 lg:grid-cols-[1.25fr_1fr]">
           <motion.h1
@@ -28,10 +38,17 @@ export function Hero() {
               <DownloadButton />
               <StarButton size="lg" />
             </div>
+            <ul className="flex flex-wrap gap-2" aria-label="Highlights">
+              {TRUST.map(({ Icon, text }) => (
+                <li key={text} className="chip">
+                  <Icon size={14} className="text-[var(--accent)]" /> {text}
+                </li>
+              ))}
+            </ul>
             <p className="text-sm text-[var(--faint)]">A free, open-source voice assistant for Mac, in English and தமிழ். Apple Silicon, macOS 13 or later.</p>
           </motion.div>
         </div>
-        <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.25, ease: [0.22, 1, 0.36, 1] }} className="mt-16">
+        <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.25, ease: [0.22, 1, 0.36, 1] }} className="mt-12 sm:mt-16">
           <Desk />
         </motion.div>
       </div>

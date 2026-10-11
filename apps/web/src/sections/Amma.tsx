@@ -17,7 +17,7 @@ const DOSES = [
 
 export function Amma() {
   return (
-    <section id="amma" className="px-4 py-28 sm:px-6">
+    <section id="amma" className="px-4 py-16 sm:px-6 sm:py-28">
       <div className="mx-auto grid max-w-[1180px] items-center gap-14 lg:grid-cols-[1.05fr_1fr]">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-[var(--accent)]">

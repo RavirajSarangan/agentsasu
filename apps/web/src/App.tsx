@@ -6,7 +6,7 @@ import { Robot } from "./Robot";
 import { Amma } from "./sections/Amma";
 import { Faq } from "./sections/Faq";
 import { Fun } from "./sections/Fun";
-import { Gallery } from "./sections/Gallery";
+import { Gallery, Shot } from "./sections/Gallery";
 import { Guard } from "./sections/Guard";
 import { Hero } from "./sections/Hero";
 import { SayIt } from "./sections/SayIt";
@@ -38,7 +38,7 @@ export function App() {
 function Shelf() {
   const [theme, setTheme] = useState<ThemeName>("midnight");
   return (
-    <section className="bg-[var(--bg-2)] px-4 py-24 sm:px-6">
+    <section className="bg-[var(--bg-2)] px-4 py-14 sm:px-6 sm:py-24">
       <div className="mx-auto max-w-[1180px]">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
@@ -81,7 +81,7 @@ function Shelf() {
 
 function FinalCta() {
   return (
-    <section className="dots px-4 py-32 text-center sm:px-6">
+    <section className="dots overflow-x-clip px-4 pt-20 text-center sm:px-6 sm:pt-32">
       <div className="mx-auto flex max-w-2xl flex-col items-center">
         <Robot state="happy" size={130} />
         <h2 className="display mt-12 text-[clamp(2.6rem,6vw,4.6rem)]">Say hey to Sasu.</h2>
@@ -89,6 +89,12 @@ function FinalCta() {
         <div className="mt-9 flex flex-wrap justify-center gap-3">
           <DownloadButton />
           <StarButton size="lg" />
+        </div>
+      </div>
+      {/* the real app, rising out of the page */}
+      <div className="mx-auto mt-16 max-w-[980px] [perspective:1600px] sm:mt-20">
+        <div className="overflow-hidden rounded-t-[20px] shadow-[var(--shadow-lg)] ring-1 ring-[var(--line)] [mask-image:linear-gradient(to_bottom,black_55%,transparent)] [transform:rotateX(14deg)] [transform-origin:bottom]">
+          <Shot name="home" alt="Sasu on a Mac: the robot, today's care reminders and a finished request with every step ticked" width={1080} height={880} className="block h-auto w-full" />
         </div>
       </div>
     </section>

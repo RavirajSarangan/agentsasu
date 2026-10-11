@@ -259,3 +259,25 @@ body {
 body {
   overflow-x: clip;
 }
+
+/* Hero glow: two soft blobs in the robot's blue and the LED amber. */
+.aurora {
+  background:
+    radial-gradient(40% 55% at 30% 35%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+    radial-gradient(35% 45% at 72% 30%, color-mix(in srgb, #ffb547 16%, transparent), transparent 70%);
+  filter: blur(30px);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.38rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  background: color-mix(in srgb, var(--panel) 75%, transparent);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(8px);
+}

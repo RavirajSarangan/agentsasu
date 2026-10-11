@@ -41,14 +41,15 @@ export function Gallery() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("home");
   const current = TABS.find((t) => t.id === tab)!;
   return (
-    <section id="screens" className="bg-[var(--bg-2)] px-4 py-24 sm:px-6">
+    <section id="screens" className="bg-[var(--bg-2)] px-4 py-14 sm:px-6 sm:py-24">
       <div className="mx-auto max-w-[1180px]">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
             <h2 className="title text-[clamp(2rem,4vw,3rem)]">See it on your Mac.</h2>
             <p className="lede mt-3">Real screens from the app, not mock-ups.</p>
           </div>
-          <div role="tablist" aria-label="Screens" className="inline-flex flex-wrap rounded-full bg-[var(--bg)] p-1">
+          <div role="tablist" aria-label="Screens" className="-mx-4 flex max-w-[calc(100%+2rem)] overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:max-w-none sm:px-0">
+            <div className="inline-flex shrink-0 rounded-full bg-[var(--bg)] p-1">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -69,9 +70,10 @@ export function Gallery() {
                 className="relative rounded-full px-4 py-2 text-sm font-semibold"
               >
                 {tab === t.id && <motion.span layoutId="screen-tab" className="absolute inset-0 rounded-full bg-[var(--panel)] shadow-[var(--shadow-sm)]" />}
-                <span className="relative">{t.label}</span>
+                <span className="relative whitespace-nowrap">{t.label}</span>
               </button>
             ))}
+            </div>
           </div>
         </div>
 
@@ -80,10 +82,16 @@ export function Gallery() {
             <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
             <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
             <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-            <span className="ml-3 text-xs font-medium text-[var(--muted)]">Sasu</span>
+            <span className="ml-3 text-xs font-medium text-[var(--muted)]">Sasu — {current.label}</span>
           </div>
           <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
-            <Shot name={current.id} alt={current.alt} width={1080} height={880} className="block h-auto w-full" />
+            <Shot
+              name={current.id}
+              alt={current.alt}
+              width={1080}
+              height={880}
+              className="block aspect-[6/7] h-auto w-full object-cover object-[72%_0] sm:aspect-auto"
+            />
           </motion.div>
         </figure>
 

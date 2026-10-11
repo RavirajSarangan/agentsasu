@@ -18,7 +18,7 @@ export function UndoDemo() {
     cue(undone ? "success" : "toggle", true);
   };
   return (
-    <section id="undo" className="bg-[var(--bg-2)] px-4 py-28 sm:px-6">
+    <section id="undo" className="bg-[var(--bg-2)] px-4 py-16 sm:px-6 sm:py-28">
       <div className="mx-auto grid max-w-[1180px] items-center gap-14 lg:grid-cols-2">
         <div>
           <h2 className="title text-[clamp(2.2rem,4.6vw,3.6rem)]">Changed your mind? Say “undo”.</h2>

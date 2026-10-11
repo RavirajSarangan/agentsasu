@@ -23,6 +23,9 @@ type Beat = {
 };
 
 const POS = { home: { x: 87, y: 72 }, safari: { x: 64, y: 22 }, finder: { x: 58, y: 24 } } as const;
+/** Phones: a portrait Mac screen; windows fill the top, the robot sits below them. */
+const POS_NARROW = { home: { x: 76, y: 80 }, safari: { x: 70, y: 76 }, finder: { x: 70, y: 76 } } as const;
+const NARROW = 760;
 
 const SCRIPT: Beat[] = [
   { state: "idle", at: "home", win: "none", ms: 1600 },
@@ -85,8 +88,14 @@ export function Desk() {
   const [playing, setPlaying] = useState(!reduced);
   const [ref, w] = useWidth<HTMLDivElement>();
   const beat = SCRIPT[i]!;
-  const robot = Math.max(54, Math.min(120, w * 0.095));
-  const pos = POS[beat.at];
+  const narrow = w < NARROW;
+  const robot = narrow ? Math.max(58, w * 0.17) : Math.max(54, Math.min(120, w * 0.095));
+  const pos = (narrow ? POS_NARROW : POS)[beat.at];
+  const font = narrow ? Math.min(15, w * 0.035) : Math.max(9, w * 0.0125);
+  const bubbleW = narrow ? Math.min(w * 0.62, 290) : Math.max(220, w * 0.24);
+  // keep the bubble inside the screen: shift it sideways, the tail stays on the robot
+  const cx = (pos.x / 100) * w;
+  const shift = Math.min(0, w - 10 - (cx + bubbleW / 2)) + Math.max(0, 10 - (cx - bubbleW / 2));
 
   useEffect(() => {
     if (!playing) return;
@@ -98,8 +107,8 @@ export function Desk() {
   return (
     <div className="mx-auto w-full max-w-[1120px]">
       {/* the Mac */}
-      <div ref={ref} className="relative aspect-[16/10] w-full rounded-[clamp(14px,2.2vw,28px)] bg-[#0e1430] p-[clamp(5px,0.7vw,9px)] shadow-[var(--shadow-lg)]">
-        <div className="relative h-full w-full overflow-hidden rounded-[clamp(10px,1.6vw,20px)]" style={{ fontSize: Math.max(9, w * 0.0125) }}>
+      <div ref={ref} className={`relative w-full ${narrow ? "aspect-[4/5]" : "aspect-[16/10]"} rounded-[clamp(14px,2.2vw,28px)] bg-[#0e1430] p-[clamp(5px,0.7vw,9px)] shadow-[var(--shadow-lg)]`}>
+        <div className="relative h-full w-full overflow-hidden rounded-[clamp(10px,1.6vw,20px)]" style={{ fontSize: font }} data-narrow={narrow || undefined}>
           <Wallpaper />
           <MenuBar />
           <AnimatePresence>
@@ -120,7 +129,9 @@ export function Desk() {
         >
           <div className="pointer-events-auto relative flex flex-col items-center">
             <AnimatePresence mode="wait">
-              {beat.bubble && <SpeechBubble key={beat.bubble.text + beat.bubble.kind} b={beat.bubble} state={beat.state} undo={!!beat.undo} width={Math.max(150, w * 0.24)} />}
+              {beat.bubble && (
+                <SpeechBubble key={beat.bubble.text + beat.bubble.kind} b={beat.bubble} state={beat.state} undo={!!beat.undo} width={bubbleW} shift={shift} fontSize={narrow ? Math.max(12.5, font) : undefined} />
+              )}
             </AnimatePresence>
             <Robot state={beat.state} size={robot} lang={beat.bubble?.lang ?? "en"} halo={false} />
           </div>
@@ -167,7 +178,7 @@ export function Desk() {
   );
 }
 
-function SpeechBubble({ b, state, undo, width }: { b: Bubble; state: RobotHeadState; undo: boolean; width: number }) {
+function SpeechBubble({ b, state, undo, width, shift = 0, fontSize }: { b: Bubble; state: RobotHeadState; undo: boolean; width: number; shift?: number; fontSize?: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8, scale: 0.92 }}
@@ -176,7 +187,7 @@ function SpeechBubble({ b, state, undo, width }: { b: Bubble; state: RobotHeadSt
       transition={{ type: "spring", stiffness: 420, damping: 30 }}
       lang={b.lang}
       className="relative mb-[0.9em] rounded-[1.1em] bg-white/90 px-[1em] py-[0.7em] text-center text-[1em] leading-snug text-[#141a33] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.45)] backdrop-blur-xl"
-      style={{ width }}
+      style={{ width, marginLeft: shift * 2, fontSize }}
     >
       {b.kind === "heard" && <span className="mb-[0.2em] block text-[0.78em] font-semibold" style={{ color: STATE_COLOR[state] }}>Heard you</span>}
       {b.kind === "tool" && (
@@ -209,7 +220,7 @@ function SpeechBubble({ b, state, undo, width }: { b: Bubble; state: RobotHeadSt
           <Undo2 size="1em" /> Undo
         </motion.span>
       )}
-      <span aria-hidden className="absolute -bottom-[0.32em] left-1/2 h-[0.7em] w-[0.7em] -translate-x-1/2 rotate-45 bg-white/90" />
+      <span aria-hidden className="absolute -bottom-[0.32em] h-[0.7em] w-[0.7em] -translate-x-1/2 rotate-45 bg-white/90" style={{ left: `calc(50% - ${shift}px)` }} />
     </motion.div>
   );
 }
@@ -284,7 +295,7 @@ function Safari({ results }: { results: boolean }) {
     ["21:30", "23:50", "Direct", "£455"],
   ];
   return (
-    <motion.div {...windowMotion} className="absolute left-[6%] top-[11%] z-[5] h-[60%] w-[52%] overflow-hidden rounded-[0.9em] bg-white text-[#141a33] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]">
+    <motion.div {...windowMotion} className="absolute left-[6%] top-[11%] z-[5] h-[60%] w-[52%] overflow-hidden in-data-narrow:left-[5%] in-data-narrow:top-[9%] in-data-narrow:h-[52%] in-data-narrow:w-[90%] rounded-[0.9em] bg-white text-[#141a33] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]">
       <Chrome title="Flights to Chennai" />
       <div className="px-[1.2em] py-[0.9em]">
         <div className="mb-[1em] flex h-[2.2em] items-center rounded-[0.7em] bg-black/5 px-[0.9em] text-[0.95em] text-black/55">flights from London to Chennai, tomorrow</div>
@@ -307,7 +318,7 @@ function Safari({ results }: { results: boolean }) {
                 <span className="font-semibold">
                   {r[0]} → {r[1]}
                 </span>
-                <span className="text-black/50">LHR to MAA, {r[2]}</span>
+                <span className="text-black/50 in-data-narrow:hidden">LHR to MAA, {r[2]}</span>
                 <span className="font-bold text-[#2b49a3]">{r[3]}</span>
               </motion.div>
             ))}
@@ -321,7 +332,7 @@ function Safari({ results }: { results: boolean }) {
 function Finder({ sorted }: { sorted: boolean }) {
   const shown = sorted ? FILES.filter((f) => !f.pdf) : FILES;
   return (
-    <motion.div {...windowMotion} className="absolute left-[6%] top-[12%] z-[5] h-[58%] w-[50%] overflow-hidden rounded-[0.9em] bg-white text-[#141a33] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]">
+    <motion.div {...windowMotion} className="absolute left-[6%] top-[12%] z-[5] h-[58%] w-[50%] overflow-hidden in-data-narrow:left-[5%] in-data-narrow:top-[9%] in-data-narrow:h-[52%] in-data-narrow:w-[90%] rounded-[0.9em] bg-white text-[#141a33] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]">
       <Chrome title="Downloads" />
       <div className="flex h-full">
         <div className="hidden w-[24%] flex-col gap-[0.35em] border-r border-black/8 bg-black/[0.03] p-[0.8em] text-[0.9em] text-black/55 sm:flex">

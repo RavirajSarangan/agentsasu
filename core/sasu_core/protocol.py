@@ -75,6 +75,7 @@ class SayStart(BaseModel):
     type: Literal["say_start"] = "say_start"
     text: str
     lang: Lang
+    big: bool = False  # Amma mode: large, easy-to-read captions
 
 
 class SayChunk(BaseModel):
@@ -218,6 +219,16 @@ class MeetingState(BaseModel):
     lines: int = 0
 
 
+class Care(BaseModel):
+    """Amma mode: a medicine reminder was asked, confirmed or missed."""
+
+    type: Literal["care"] = "care"
+    kind: Literal["due", "taken", "missed", "help"]
+    who: str
+    what: str = ""
+    time: str = ""
+
+
 class Idle(BaseModel):
     """Listening ended with nothing to do; the robot relaxes."""
 
@@ -308,7 +319,8 @@ CoreEvent = Annotated[
     | TranslateMode
     | SnapRequest
     | Caption
-    | MeetingState,
+    | MeetingState
+    | Care,
     Field(discriminator="type"),
 ]
 
@@ -358,7 +370,7 @@ class Undo(BaseModel):
 class EnrollStart(BaseModel):
     type: Literal["enroll_start"] = "enroll_start"
     name: str = Field(default="Owner", max_length=40)
-    role: Literal["owner", "family", "kid"] = "owner"
+    role: Literal["owner", "family", "elder", "kid"] = "owner"
 
 
 class ProfileRemove(BaseModel):

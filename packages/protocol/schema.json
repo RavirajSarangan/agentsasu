@@ -139,6 +139,47 @@
         "title": "Caption",
         "type": "object"
       },
+      "Care": {
+        "description": "Amma mode: a medicine reminder was asked, confirmed or missed.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "due",
+              "taken",
+              "missed",
+              "help"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "time": {
+            "default": "",
+            "title": "Time",
+            "type": "string"
+          },
+          "type": {
+            "const": "care",
+            "default": "care",
+            "title": "Type",
+            "type": "string"
+          },
+          "what": {
+            "default": "",
+            "title": "What",
+            "type": "string"
+          },
+          "who": {
+            "title": "Who",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "who"
+        ],
+        "title": "Care",
+        "type": "object"
+      },
       "ConfirmRequest": {
         "properties": {
           "id": {
@@ -596,6 +637,11 @@
       },
       "SayStart": {
         "properties": {
+          "big": {
+            "default": false,
+            "title": "Big",
+            "type": "boolean"
+          },
           "lang": {
             "enum": [
               "en",
@@ -979,6 +1025,7 @@
         "auth_required": "#/$defs/AuthRequired",
         "brain_status": "#/$defs/BrainStatus",
         "caption": "#/$defs/Caption",
+        "care": "#/$defs/Care",
         "confirm_request": "#/$defs/ConfirmRequest",
         "enroll_progress": "#/$defs/EnrollProgress",
         "error": "#/$defs/ErrorEvent",
@@ -1126,6 +1173,9 @@
       },
       {
         "$ref": "#/$defs/MeetingState"
+      },
+      {
+        "$ref": "#/$defs/Care"
       }
     ]
   },
@@ -1192,6 +1242,7 @@
             "enum": [
               "owner",
               "family",
+              "elder",
               "kid"
             ],
             "title": "Role",

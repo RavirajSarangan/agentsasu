@@ -17,6 +17,8 @@ export type UndoOffer = { turnId: string; actions: string[] };
 export type RobotView = {
   state: RobotHeadState;
   caption: string;
+  /** Amma mode: an elder is listening, so captions are large. */
+  big: boolean;
   lang: Lang;
   activeTool: string | null;
   confirm: ConfirmPrompt | null;
@@ -37,6 +39,7 @@ export type LocalEvent = { type: "settle" } | { type: "idle_timeout" } | { type:
 export const initialView: RobotView = {
   state: "idle",
   caption: "",
+  big: false,
   lang: "en",
   activeTool: null,
   confirm: null,
@@ -73,7 +76,7 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
     case "partial_transcript":
       return { ...next, caption: event.text };
     case "transcript":
-      return { ...next, state: "thinking", caption: event.text, lang: event.lang, plan: null, undo: null };
+      return { ...next, state: "thinking", caption: event.text, big: false, lang: event.lang, plan: null, undo: null };
     case "plan_preview":
       return { ...next, state: "thinking", plan: event.steps };
     case "undo_available":
@@ -92,6 +95,7 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
     case "snap_request":
     case "caption":
     case "meeting":
+    case "care":
       return { ...view };
     case "idle":
       return { ...next, state: "idle", caption: "", activeTool: null };
@@ -114,7 +118,7 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
         confirm: { id: event.id, prompt: event.prompt, risk: event.risk },
       };
     case "say_start":
-      return { ...next, state: "speaking", caption: event.text, lang: event.lang, confirm: null };
+      return { ...next, state: "speaking", caption: event.text, big: event.big, lang: event.lang, confirm: null };
     case "say_chunk":
       return { ...next, caption: view.caption + event.text };
     case "say_end":
@@ -129,7 +133,7 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
     case "idle_timeout":
       return { ...next, state: "sleeping", caption: "", activeTool: null, confirm: null };
     case "settle":
-      return { ...next, state: "idle", caption: "" };
+      return { ...next, state: "idle", caption: "", big: false };
     case "disconnected":
       return { ...next, state: "error", caption: "Reconnecting to Sasu core…", activeTool: null, confirm: null };
   }

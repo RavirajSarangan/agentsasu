@@ -144,6 +144,45 @@ let brainContractJSON = #"""
   },
   {
    "function": {
+    "description": "Look up phone numbers in the Mac's Contacts by name.",
+    "name": "contacts_find",
+    "parameters": {
+     "properties": {
+      "name": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "name"
+     ],
+     "type": "object"
+    }
+   },
+   "type": "function"
+  },
+  {
+   "function": {
+    "description": "Start a FaceTime audio call to a phone number. Asks first.",
+    "name": "call_contact",
+    "parameters": {
+     "properties": {
+      "name": {
+       "type": "string"
+      },
+      "number": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "number"
+     ],
+     "type": "object"
+    }
+   },
+   "type": "function"
+  },
+  {
+   "function": {
     "description": "Find files on this Mac by name (and optionally kind, e.g. pdf, image, presentation).",
     "name": "files_find",
     "parameters": {

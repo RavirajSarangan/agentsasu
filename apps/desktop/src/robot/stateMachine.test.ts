@@ -11,7 +11,7 @@ describe("robot state machine", () => {
       { type: "transcript", text: "open Safari", lang: "en" },
       { type: "tool_start", id: "1", name: "web_search", args: {}, risk: "safe" },
       { type: "tool_start", id: "2", name: "apps.open", args: {}, risk: "safe" },
-      { type: "say_start", text: "Done", lang: "en" },
+      { type: "say_start", text: "Done", lang: "en", big: false },
       { type: "turn_done", ok: true },
       { type: "settle" },
     ] satisfies (CoreEvent | LocalEvent)[];
@@ -32,6 +32,13 @@ describe("robot state machine", () => {
   it("sleeps on idle timeout and wakes on wake", () => {
     expect(run({ type: "idle_timeout" }).state).toBe("sleeping");
     expect(run({ type: "idle_timeout" }, { type: "wake", source: "wakeword" }).state).toBe("listening");
+  });
+
+  it("shows big captions for an elder until the turn settles", () => {
+    const v = run({ type: "say_start", text: "அம்மா, மாத்திரை நேரம்.", lang: "ta", big: true });
+    expect(v).toMatchObject({ state: "speaking", big: true });
+    expect(reduce(v, { type: "settle" }).big).toBe(false);
+    expect(reduce(v, { type: "care", kind: "taken", who: "amma", what: "", time: "" })).toMatchObject({ big: true, state: "speaking" });
   });
 
   it("classifies tools", () => {

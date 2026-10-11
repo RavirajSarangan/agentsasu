@@ -16,6 +16,7 @@ import { Segmented } from "../ui/Segmented";
 import { Slider } from "../ui/Slider";
 import { Switch } from "../ui/Switch";
 import { BrainSettings } from "../settings/BrainSettings";
+import { CareSettings } from "../settings/CareSettings";
 import { PersonalSettings } from "../settings/PersonalSettings";
 import { VoiceSettings } from "../settings/VoiceSettings";
 
@@ -46,6 +47,7 @@ function SettingsPage() {
       <BrainSettings />
       <VoiceSettings />
       <PersonalSettings />
+      <CareSettings />
 
       <Group title="Appearance" description="How Sasu looks on your desktop.">
         <div className="py-4">

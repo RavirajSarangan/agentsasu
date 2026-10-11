@@ -10,7 +10,7 @@ type Flash = { ok: boolean; summary: string };
 
 /** Glass caption under the robot: streaming words, tool progress and yes/no prompts. */
 export function Bubble() {
-  const { caption, confirm, activeTool, lang, auth, plan, undo, state } = useSelector(agentStore, (s) => s.view);
+  const { caption, big, confirm, activeTool, lang, auth, plan, undo, state } = useSelector(agentStore, (s) => s.view);
   const [flash, setFlash] = useState<Flash | null>(null);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export function Bubble() {
           exit={{ opacity: 0, y: 6, scale: 0.95, transition: { duration: 0.18 } }}
           transition={{ type: "spring", stiffness: 420, damping: 30 }}
           lang={lang}
-          className="glass relative w-[224px] rounded-[16px] px-3.5 py-2.5 text-center text-[12.5px] leading-[1.4]"
+          className={`glass relative rounded-[16px] px-3.5 py-2.5 text-center ${big ? "w-[256px] text-[17px] font-medium leading-[1.35]" : "w-[224px] text-[12.5px] leading-[1.4]"}`}
           style={dangerous ? { borderColor: "var(--danger)", boxShadow: "0 0 0 1px var(--danger), var(--shadow-lg)" } : undefined}
         >
           {auth && (
@@ -73,7 +73,7 @@ export function Bubble() {
               ))}
             </ol>
           )}
-          {text && <Words text={text} />}
+          {text && <Words text={text} lines={big ? 5 : 4} />}
           {offerUndo && (
             <motion.button
               initial={{ opacity: 0, y: 4 }}
@@ -147,10 +147,10 @@ const pill = {
 };
 
 /** Each new word fades up as it streams in. */
-function Words({ text }: { text: string }) {
+function Words({ text, lines }: { text: string; lines: number }) {
   const words = text.split(/(\s+)/);
   return (
-    <p className="line-clamp-4">
+    <p className={lines === 5 ? "line-clamp-5" : "line-clamp-4"}>
       {words.map((w, i) => (
         <motion.span key={`${i}-${w}`} initial={{ opacity: 0, filter: "blur(3px)" }} animate={{ opacity: 1, filter: "blur(0px)" }} transition={{ duration: 0.25 }}>
           {w}

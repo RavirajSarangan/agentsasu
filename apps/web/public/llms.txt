@@ -5,6 +5,7 @@
 Key facts:
 - Voice recognition, the wake word and voiceprints run on the Mac; only the text of a request goes to the AI the user picks (free Google Gemini or Groq, Anthropic Claude, or Ollama offline).
 - Only the owner's voice gets full access; family and kid profiles get limited access; strangers get guest mode.
+- Amma mode for elderly parents: slow Tamil speech and large captions, medicine reminders that ask "did you take it?" and text the family on a missed dose, calling family by voice, and a spoken "help" alert.
 - Risky actions need Touch ID; every action can be undone ("Sasu, undo"); a hash-chained log records everything.
 
 ## Links

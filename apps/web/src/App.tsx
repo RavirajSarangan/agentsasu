@@ -3,8 +3,10 @@ import { robotHeadShapes } from "robot-heads";
 import { useState } from "react";
 import { DownloadButton, Footer, Nav, StarButton } from "./Layout";
 import { Robot } from "./Robot";
+import { Amma } from "./sections/Amma";
 import { Faq } from "./sections/Faq";
 import { Fun } from "./sections/Fun";
+import { Gallery } from "./sections/Gallery";
 import { Guard } from "./sections/Guard";
 import { Hero } from "./sections/Hero";
 import { SayIt } from "./sections/SayIt";
@@ -18,8 +20,10 @@ export function App() {
       <main>
         <Hero />
         <SayIt />
+        <Gallery />
         <UndoDemo />
         <Guard />
+        <Amma />
         <Sounds />
         <Fun />
         <Shelf />

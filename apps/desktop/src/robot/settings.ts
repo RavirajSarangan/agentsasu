@@ -56,6 +56,9 @@ export type RobotSettings = {
   intruderPhoto: boolean;
   /** Emergency contact (phone or email) for the SOS phrase. */
   sosContact: string;
+  /** Amma mode: who "magan" / "magal" (son / daughter) means when an elder asks to call. */
+  sonName: string;
+  daughterName: string;
   /** Loud siren + lock when a trap file is touched or strangers keep trying. */
   lostAlarm: boolean;
   /** Remember the last 50 copied texts (encrypted) so you can ask for them back. */
@@ -105,6 +108,8 @@ const defaults: RobotSettings = {
   festivals: true,
   intruderPhoto: false,
   sosContact: "",
+  sonName: "",
+  daughterName: "",
   lostAlarm: false,
   clipboardMemory: false,
   onboarded: false,
@@ -162,6 +167,7 @@ export function coreSettings(s: RobotSettings) {
     festivals: s.festivals,
     intruder_photo: s.intruderPhoto,
     sos_contact: s.sosContact,
+    relations: { son: s.sonName, daughter: s.daughterName },
     lost_alarm: s.lostAlarm,
     clipboard_memory: s.clipboardMemory,
   };

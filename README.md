@@ -41,6 +41,8 @@ No buttons, no commands to learn. Speak the way you'd talk to a friend.
 | “Safari-um Notes-um side by side” | Tanglish | Arranges the windows (undoable) |
 | “Munnaadi copy panna link enna?” | Tanglish | Finds what you copied earlier and puts it back |
 | “Inniku diary” | Tanglish | Takes a spoken diary entry, encrypted |
+| “Amma-ku 8 mani BP maathirai reminder vai” | Tanglish | At 8, asks Amma slowly in Tamil; texts you if she misses it |
+| “மகனுக்கு போன் பண்ணு” | தமிழ் | Finds the son in Contacts and starts a FaceTime audio call (after a yes) |
 | “Sasu, undo” | any | Puts back whatever it just changed |
 
 Common requests (music, volume, opening apps, time, battery, dark mode) run **on your Mac in about 1.5 s**, without any AI service.
@@ -65,6 +67,10 @@ Answers in the language you used, switching between Tamil (Vani) and English (Ta
 **👨‍👩‍👧 Family voices**<br>
 Enrol family and kids. Kids get music, YouTube and jokes; only you can do risky things.
 
+**👵 Amma mode**<br>
+For elders: slow Tamil and big text, medicine check-ins (“ஆமா, சாப்பிட்டேன்”), a text to you on a missed dose,
+calling family by voice, and “udhavi” for help.
+
 </td>
 <td width="50%" valign="top">
 
@@ -85,8 +91,14 @@ Dances to Spotify, sleepy at night, festival greetings on Pongal and Deepavali, 
 </table>
 
 <p align="center">
-  <img src="docs/images/panel-home.png" width="49%" alt="Home: conversation timeline, plan and undo">
-  <img src="docs/images/panel-settings.png" width="49%" alt="Settings: free AI brain, girl or boy voice">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/shots/home-dark@2x.webp">
+    <img src="apps/web/public/shots/home-light@2x.webp" width="49%" alt="Home: the robot, today's medicine reminders and a finished request with each step ticked">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/shots/settings-dark@2x.webp">
+    <img src="apps/web/public/shots/settings-light@2x.webp" width="49%" alt="Amma mode settings: medicine reminders and who “son” means for voice calls">
+  </picture>
 </p>
 
 ## Security

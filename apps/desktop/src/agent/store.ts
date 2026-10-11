@@ -26,6 +26,8 @@ export type AgentState = {
   translating: boolean;
   /** Meeting notes running: seconds, lines, last caption. */
   meeting: { seconds: number; lines: number; caption: string } | null;
+  /** Bumps on every Amma-mode care event so the Care card refetches. */
+  careAt: number;
   /** Lost-Mac siren is sounding. */
   siren: boolean;
   /** Today's festival id (robot dresses up), or null. */
@@ -50,6 +52,7 @@ export const agentStore = new Store<AgentState>({
   focus: null,
   translating: false,
   meeting: null,
+  careAt: 0,
   siren: false,
   festival: null,
   privacy: null,
@@ -119,6 +122,7 @@ export function applyEvent(event: CoreEvent) {
           : s.meeting,
     siren: event.type === "alarm" && event.kind === "siren" ? true : event.type === "unlocked" ? false : s.siren,
     festival: event.type === "fun" && event.kind === "festival" ? event.detail : s.festival,
+    careAt: event.type === "care" ? Date.now() : s.careAt,
     privacy: event.type === "privacy" ? event : s.privacy,
     log: [{ at: Date.now(), event }, ...s.log].slice(0, LOG_LIMIT),
   }));

@@ -25,15 +25,23 @@ from fastapi import (
 from fastapi import status as http
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
-from . import __version__
+from . import __version__, care
 from .core import Core
 from .demo import demo_loop
 from .hub import Hub
 from .protocol import ErrorEvent, Locked, Ready, ui_command_adapter
 from .security.audit import AuditLog
 from .security.voiceprint import VoiceprintVault
+
+
+class CareIn(BaseModel):
+    who: str = Field(min_length=1, max_length=40)
+    what: str = Field(min_length=1, max_length=80)
+    hour: int = Field(ge=0, le=23)
+    minute: int = Field(default=0, ge=0, le=59)
+
 
 APP_ORIGINS = {"tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"}
 DEV_ORIGINS = {"http://localhost:1420", "http://127.0.0.1:1420"}
@@ -102,8 +110,8 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=sorted(origins),
-        allow_methods=["GET"],
-        allow_headers=["Authorization"],
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
     )
     app.state.core = core
 
@@ -172,6 +180,31 @@ def create_app(
         n = core.memory.forget(fid) if re.fullmatch(r"[0-9a-f]{10}", fid) else 0
         audit.append("memory", action="delete", removed=n)
         return {"removed": n}
+
+    @app.get("/api/care", dependencies=[Depends(require_token)])
+    async def list_care() -> list[dict[str, Any]]:
+        now = core.clock()
+        return [
+            {"id": d.id, "who": d.who, "what": d.what, "hour": d.hour, "minute": d.minute,
+             "status": core.care.status(d, now)}
+            for d in sorted(core.care_store.all(), key=lambda d: (d.hour, d.minute))
+        ]  # fmt: skip
+
+    @app.post("/api/care", dependencies=[Depends(require_token)])
+    async def add_care(body: CareIn) -> dict[str, str]:
+        d = core.care_store.add(
+            care.Dose(
+                secrets.token_hex(4), body.who.strip(), body.what.strip(), body.hour, body.minute
+            )
+        )
+        audit.append("care", action="add", who=d.who, at=f"{d.hour:02d}:{d.minute:02d}")
+        return {"id": d.id}
+
+    @app.delete("/api/care/{did}", dependencies=[Depends(require_token)])
+    async def delete_care(did: str) -> dict[str, bool]:
+        ok = bool(re.fullmatch(r"[0-9a-f]{8}", did)) and core.care_store.remove(did)
+        audit.append("care", action="delete", removed=ok)
+        return {"ok": ok}
 
     @app.get("/api/skills", dependencies=[Depends(require_token)])
     async def skills() -> list[dict[str, Any]]:

@@ -12,7 +12,7 @@ describe("buildTimeline", () => {
         { type: "transcript", text: "open Safari", lang: "en" },
         { type: "tool_start", id: "t1", name: "apps.open", args: {}, risk: "safe" },
         { type: "tool_end", id: "t1", ok: true, summary: "opened" },
-        { type: "say_start", text: "Done", lang: "en" },
+        { type: "say_start", text: "Done", lang: "en", big: false },
         { type: "say_chunk", text: " now" },
         { type: "turn_done", ok: true },
       ),

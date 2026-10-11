@@ -248,3 +248,14 @@ body {
     opacity: 0;
   }
 }
+
+/* Real app screenshots: one variant per theme (the hidden one is never downloaded). */
+:root:not([data-theme="dark"]) .shot-dark,
+:root[data-theme="dark"] .shot-light {
+  display: none;
+}
+
+/* The hero robot can float a few pixels past a phone-width viewport. */
+body {
+  overflow-x: clip;
+}

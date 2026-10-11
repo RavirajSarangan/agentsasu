@@ -4,6 +4,7 @@
 from . import (  # noqa: F401
     apps,
     clipboard,
+    contacts,
     files,
     keyboard,
     media,

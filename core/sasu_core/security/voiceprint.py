@@ -61,7 +61,7 @@ class Voiceprint:
         return Verdict(ok=score >= self.threshold, score=round(score, 4))
 
 
-Role = Literal["owner", "family", "kid"]
+Role = Literal["owner", "family", "elder", "kid"]
 
 
 @dataclass

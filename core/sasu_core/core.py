@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from . import assist, briefing, extras, fastpath, focus, lifelog
+from . import assist, briefing, care, extras, fastpath, focus, lifelog
 from . import memory as mem
 from .brain.agent import Agent, Executor, Turn
 from .brain.providers import SPECS, ChatClient, LLMError, pick_model
@@ -22,6 +23,7 @@ from .protocol import (
     BrainStatus,
     Cancel,
     Caption,
+    Care,
     ConfirmRequest,
     ConfirmResponse,
     Control,
@@ -175,6 +177,11 @@ class Core:
         self._sos_task: asyncio.Task[None] | None = None
         self._sos_cancel: asyncio.Event | None = None
         self.sos_delay = 5.0  # seconds to say "cancel"
+        self.help_delay = 10.0  # Amma mode "help": a little longer to cancel
+        self.care_store = care.CareStore(data_dir / "care.bin", vault.aead)
+        self.care = care.Tracker()
+        self.relations: dict[str, str] = {}  # "son" → "Raviraj" (Settings → Family → Care)
+        self.clock = __import__("time").time
         self._siren_turn: str | None = None
         self._strangers: deque[float] = deque(maxlen=10)
         self.meeting: list[str] | None = None
@@ -229,14 +236,33 @@ class Core:
     def start_text_turn(
         self, text: str, *, guest: bool = False, lang: Lang | None = None, role: str = "owner"
     ) -> None:
-        self._role = "guest" if guest else role
         text = text.strip()
+        if not guest and self._voice_answer(text):
+            return  # "yes" / "no" to a pending question, by voice (keeps the asker's role)
+        self._role = "guest" if guest else role
         if self.panic.heard_in(text):
             self._start(self.panic_lock())
             return
         if self._sos_cancel is not None and lifelog.CANCEL.search(text):
             self._sos_cancel.set()
             return
+        if self.care.pending() and (care.CONFIRM_YES.match(text) or care.CONFIRM_NO.match(text)):
+            self._start(
+                self.dose_answer(bool(care.CONFIRM_YES.match(text)), lang or detect_lang(text))
+            )
+            return
+        if role == "elder" and care.HELP.search(text):
+            self._sos_task = asyncio.create_task(
+                self.sos_turn(lang or detect_lang(text), help=True)
+            )
+            return
+        if not guest and role in ("owner", "family", "elder"):
+            if (dose := care.parse_reminder(text)) is not None:
+                self._start(self.add_reminder(dose, lang or detect_lang(text)))
+                return
+            if (target := care.call_target(text)) is not None:
+                self._start(self.call_turn(target, lang or detect_lang(text)))
+                return
         if not guest and role in ("owner", "family") and self.sos.heard_in(text):
             self._sos_task = asyncio.create_task(self.sos_turn(lang or detect_lang(text)))
             return
@@ -606,13 +632,16 @@ class Core:
         await self.speak(say if lang != "ta" else "இதுக்கு AI key வேணும். Settings-ல சேர்க்கவும்.", lang)
         await self.hub.emit(TurnDone(ok=False))
 
-    async def speak(self, text: str, lang: Lang) -> None:
-        """Streams the caption word by word while the Mac voice speaks it."""
+    async def speak(self, text: str, lang: Lang, big: bool | None = None) -> None:
+        """Streams the caption word by word while the Mac voice speaks it.
+        Amma mode (an elder speaking, or a care reminder): large captions, slower voice."""
         words = text.split(" ")
+        elder = self._role == "elder" if big is None else big
+        self.speaker.rate = 150 if elder else 195
         voice = asyncio.create_task(self._say(text)) if self.settings.tts else None
-        await self.hub.emit(SayStart(text=words[0], lang=lang))
+        await self.hub.emit(SayStart(text=words[0], lang=lang, big=elder))
         for w in words[1:]:
-            await asyncio.sleep(0.07 if voice else 0.03)
+            await asyncio.sleep((0.1 if elder else 0.07) if voice else 0.03)
             await self.hub.emit(SayChunk(text=" " + w))
         if voice:
             await voice
@@ -656,6 +685,11 @@ class Core:
         ok = True
         try:
             agent = Agent(client, self._executor(), self.hub.emit, fun=self.settings.fun_replies)
+            if turn.role == "elder":
+                agent.context = (
+                    "\nThe speaker is an elderly family member. Reply warmly in simple Tamil (Tamil script) "
+                    "unless they spoke English; one short sentence."
+                )
             if turn.role == "owner" and not guest:
                 facts = self.memory.all()[-20:]
                 if facts:
@@ -792,6 +826,7 @@ class Core:
             asyncio.create_task(self._watch_music()),
             asyncio.create_task(self._watch_nudges()),
             asyncio.create_task(self._watch_clipboard()),
+            asyncio.create_task(self._watch_care()),
         ]
         if voice_models.ready(self.models_dir):
             await self.start_voice()
@@ -1083,25 +1118,42 @@ class Core:
         await self.hub.emit(TurnDone(ok=ok))
 
     # ── SOS and lost-Mac alarm ─────────────────────────────────────────────
-    async def sos_turn(self, lang: Lang) -> None:
+    async def sos_turn(self, lang: Lang, help: bool = False) -> None:
         import time as _t
 
         contact = self.settings.sos_contact.strip()
         if not contact:
-            await self.speak("Set an emergency contact in Settings, Security first.", "en")
+            await self.speak(
+                "Set an emergency contact in Settings, Security first.", "en", big=help
+            )
             return
         self._sos_cancel = cancel = asyncio.Event()
-        self.audit.append("alarm", alarm="sos", detail="countdown")
-        await self.hub.emit(
-            Alarm(kind="sos", detail="Sending SOS in 5 seconds. Say cancel to stop.")
-        )
-        await self._say(
-            "Sending S O S in 5 seconds. Say cancel to stop."
-            if lang != "ta"
-            else "5 விநாடியில் SOS அனுப்பறேன். வேண்டாம்னா cancel சொல்லுங்க."
-        )
+        delay = self.help_delay if help else self.sos_delay
+        self.audit.append("alarm", alarm="help" if help else "sos", detail="countdown")
+        if help:
+            who = self._last_speaker[0]
+            await self.hub.emit(Care(kind="help", who=who))
+            await self.hub.emit(
+                Alarm(kind="sos", detail=f"{who} asked for help. Calling family in 10 seconds.")
+            )
+            await self.speak(
+                "Don't worry, I'm telling your family now. Say cancel if you're okay."
+                if lang != "ta"
+                else "பயப்படாதீங்க, உங்க குடும்பத்துக்கு சொல்றேன். சரியா இருந்தா cancel சொல்லுங்க.",
+                lang,
+                big=True,
+            )
+        else:
+            await self.hub.emit(
+                Alarm(kind="sos", detail="Sending SOS in 5 seconds. Say cancel to stop.")
+            )
+            await self._say(
+                "Sending S O S in 5 seconds. Say cancel to stop."
+                if lang != "ta"
+                else "5 விநாடியில் SOS அனுப்பறேன். வேண்டாம்னா cancel சொல்லுங்க."
+            )
         try:
-            await asyncio.wait_for(cancel.wait(), self.sos_delay)
+            await asyncio.wait_for(cancel.wait(), delay)
             self._sos_cancel = None
             self.audit.append("alarm", alarm="sos", detail="cancelled")
             await self.speak("SOS cancelled." if lang != "ta" else "SOS ரத்து பண்ணிட்டேன்.", lang)
@@ -1112,6 +1164,8 @@ class Core:
         where = f" Last known area: {self.settings.city}." if self.settings.city else ""
         who = self._last_speaker[0] if self._last_speaker[0] != "Owner" else "the owner of this Mac"
         text = f"SOS from {who}, sent by Sasu at {_t.strftime('%H:%M, %d %b')}. I may need help, please call me.{where}"
+        if help:
+            text = f"Help needed: {self._last_speaker[0]} asked Sasu for help at {_t.strftime('%H:%M, %d %b')}. Please call.{where}"
         turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role="owner")
         turn.plan_approved = True
         result = await self._executor().call("messages_send", {"to": contact, "text": text}, turn)
@@ -1219,6 +1273,135 @@ class Core:
             lang,
         )
 
+    # ── Amma mode ──────────────────────────────────────────────────────────
+    def _voice_answer(self, text: str) -> bool:
+        """A spoken "yes" / "no" answers a pending confirm question (never Touch ID ones)."""
+        waiting = [
+            pid for pid, p in self.pending.items() if p.kind == "confirm" and not p.future.done()
+        ]
+        if not waiting:
+            return False
+        t = text.strip().lower().rstrip(".!")
+        if care.CONFIRM_YES.match(t) or re.match(
+            r"^(?:ok|okay|sari|seri|சரி|go ahead|do it|pannu)\b", t
+        ):
+            self.audit.append("approval", step="voice", answer="yes")
+            return self._resolve(waiting[-1], "confirm", True)
+        if care.CONFIRM_NO.match(t) or re.match(r"^(?:no|cancel|venaam|vendaam|வேண்டாம்)\b", t):
+            self.audit.append("approval", step="voice", answer="no")
+            return self._resolve(waiting[-1], "confirm", False)
+        return False
+
+    async def add_reminder(self, dose: care.Dose, lang: Lang) -> None:
+        self.care_store.add(dose)
+        self.audit.append(
+            "care", action="add", who=dose.who, at=f"{dose.hour:02d}:{dose.minute:02d}"
+        )
+        who_ta = care.TAMIL_NAMES.get(dose.who, dose.who)
+        at = f"{dose.hour % 12 or 12}:{dose.minute:02d} {'PM' if dose.hour >= 12 else 'AM'}"
+        await self.speak(
+            f"Okay. Every day at {at} I'll remind {dose.who} about {dose.what}."
+            if lang != "ta"
+            else f"சரி. தினமும் {at}-க்கு {who_ta}-கிட்ட {dose.what} பத்தி ஞாபகப்படுத்துறேன்.",
+            lang,
+        )
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def dose_answer(self, taken: bool, lang: Lang) -> None:
+        if taken:
+            keys = self.care.confirm()
+            self.audit.append("care", action="taken", doses=keys)
+            await self.hub.emit(Care(kind="taken", who=self._last_speaker[0]))
+            await self.speak(
+                "நல்லது! நல்லா இருங்க."
+                if lang == "ta" or self._role == "elder"
+                else "Great, thank you!",
+                "ta" if lang == "ta" or self._role == "elder" else "en",
+                big=True,
+            )
+        else:
+            await self.speak(
+                "சரி, கொஞ்ச நேரம் கழிச்சு மறுபடி கேக்கறேன்."
+                if lang == "ta" or self._role == "elder"
+                else "Okay, I'll ask again in a bit.",
+                "ta" if lang == "ta" or self._role == "elder" else "en",
+                big=True,
+            )
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def care_tick(self) -> None:
+        """One pass of the reminder clock (every 30 s from the watcher; tests call it directly)."""
+        for action, dose in self.care.actions(self.care_store.all(), self.clock()):
+            at = f"{dose.hour:02d}:{dose.minute:02d}"
+            if action in ("ask", "repeat"):
+                self.audit.append("care", action=action, who=dose.who, what=dose.what, at=at)
+                await self.hub.emit(Care(kind="due", who=dose.who, what=dose.what, time=at))
+                if self.voice:
+                    self.voice.follow_up = True
+                    self.voice.follow_timeout = 60.0
+                await self.speak(care.ask_text(dose), "ta", big=True)
+            else:
+                self.audit.append("care", action="missed", who=dose.who, what=dose.what, at=at)
+                await self.hub.emit(Care(kind="missed", who=dose.who, what=dose.what, time=at))
+                contact = self.settings.sos_contact.strip()
+                if contact:
+                    turn = Turn(id=uuid.uuid4().hex[:12], lang="en", role="owner")
+                    turn.plan_approved = True
+                    text = f"Sasu: {dose.who} hasn't confirmed taking {dose.what} (due {at}). You may want to check in."
+                    await self._executor().call(
+                        "messages_send", {"to": contact, "text": text}, turn
+                    )
+
+    async def _watch_care(self) -> None:
+        while True:
+            await asyncio.sleep(30)
+            if not self.locked and not (self._turn and not self._turn.done()):
+                await self.care_tick()
+
+    def resolve_relation(self, target: str) -> str:
+        """ "magan" / "மகனு" / "son" → the name set for that relation, else the words as said."""
+        low = target.lower()
+        for word, rel in care.RELATIONS.items():
+            stem = word[:-1] if word.endswith("்") else word
+            if low == word or low.startswith(stem):
+                return self.relations.get(rel, target)
+        return target
+
+    async def call_turn(self, target: str, lang: Lang) -> None:
+        name = self.resolve_relation(target)
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role=self._role)
+        await self.hub.emit(Transcript(text=f"call {name}", lang=lang))
+        ex = self._executor()
+        found = await ex.call("contacts_find", {"name": name}, turn)
+        m = re.search(
+            r"^(?:<untrusted>\n)?([^:\n]+): (\+?[\d\s()-]{6,20})$",
+            found.split("\n", 1)[-1],
+            re.MULTILINE,
+        )
+        if not found.startswith("OK") or not m:
+            await self.speak(
+                f"I couldn't find {name} in your contacts."
+                if lang != "ta"
+                else f"Contacts-ல {name} இல்ல.",
+                lang,
+            )
+            await self.hub.emit(TurnDone(ok=False))
+            return
+        # No model reads the lookup (a fixed pattern picks the number), so the call keeps the
+        # normal confirm tier instead of the post-untrusted bump to Touch ID.
+        turn = Turn(id=turn.id, lang=lang, role=turn.role)
+        result = await ex.call(
+            "call_contact", {"number": m.group(2).strip(), "name": m.group(1).strip()}, turn
+        )
+        ok = result.startswith("OK")
+        await self.speak(
+            (f"Calling {m.group(1).strip()}." if ok else "Okay, not calling.")
+            if lang != "ta"
+            else (f"{m.group(1).strip()}-க்கு call பண்றேன்." if ok else "சரி, call பண்ணல."),
+            lang,
+        )
+        await self.hub.emit(TurnDone(ok=ok))
+
     async def remember(self, fact: str, lang: Lang) -> None:
         self.memory.add(fact)
         self.audit.append("memory", action="add", chars=len(fact))
@@ -1295,6 +1478,9 @@ class Core:
         if not confirmed:
             cid = uuid.uuid4().hex[:12]
             await self.hub.emit(ConfirmRequest(id=cid, prompt=prompt, lang=lang, risk=risk))
+            if self.voice and self.settings.tts:
+                self.voice.follow_up = True  # answer "yes" / "aamaa" without the wake word
+                await self._say(prompt)
             ok = await self._wait(cid, "confirm", CONFIRM_TIMEOUT_S)
             self.audit.append("approval", id=cid, step="confirm", risk=risk, prompt=prompt, ok=ok)
             if not ok:
@@ -1418,6 +1604,8 @@ class Core:
             changed = True
         if s.get("guest_mode") in ("guest", "reject"):
             self.settings.guest_mode = s["guest_mode"]
+        if isinstance(rel := s.get("relations"), dict):
+            self.relations = {str(k)[:20]: str(v)[:60] for k, v in rel.items() if v}
         if isinstance(sc := s.get("sos_contact"), str):
             self.settings.sos_contact = sc.strip()[:80]
         if isinstance(sp := s.get("sos_phrase"), str):

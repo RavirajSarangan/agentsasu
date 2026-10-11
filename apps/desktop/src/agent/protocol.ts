@@ -25,7 +25,7 @@ export const CoreEvent = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("tool_end"), id: z.string(), ok: z.boolean(), summary: z.string().default("") }),
   z.object({ type: z.literal("confirm_request"), id: z.string(), prompt: z.string(), lang: Lang, risk: Risk }),
-  z.object({ type: z.literal("say_start"), text: z.string(), lang: Lang }),
+  z.object({ type: z.literal("say_start"), text: z.string(), lang: Lang, big: z.boolean().default(false) }),
   z.object({ type: z.literal("say_chunk"), text: z.string() }),
   z.object({ type: z.literal("say_end") }),
   z.object({ type: z.literal("turn_done"), ok: z.boolean() }),
@@ -59,6 +59,7 @@ export const CoreEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("alarm"), kind: z.enum(["canary", "leak", "panic", "siren", "sos"]), detail: z.string() }),
   z.object({ type: z.literal("intruder"), text: z.string(), score: z.number(), count: z.number() }),
   z.object({ type: z.literal("fun"), kind: z.enum(["dance", "joke", "night", "briefing", "festival"]), on: z.boolean().default(true), detail: z.string().default("") }),
+  z.object({ type: z.literal("care"), kind: z.enum(["due", "taken", "missed", "help"]), who: z.string(), what: z.string().default(""), time: z.string().default("") }),
   z.object({ type: z.literal("idle") }),
   z.object({ type: z.literal("brain_status"), provider: z.string(), model: z.string(), ready: z.boolean(), keys: z.array(z.string()), voice: z.boolean() }),
 ]);
@@ -73,7 +74,7 @@ export type UiCommand =
   | { type: "set_settings"; settings: Record<string, unknown> }
   | { type: "lock" }
   | { type: "undo"; turn_id?: string | null }
-  | { type: "enroll_start"; name?: string; role?: "owner" | "family" | "kid" }
+  | { type: "enroll_start"; name?: string; role?: "owner" | "family" | "elder" | "kid" }
   | { type: "profile_remove"; name: string }
   | { type: "enroll_cancel" }
   | { type: "skill_run"; name: string }

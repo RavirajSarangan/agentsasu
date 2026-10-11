@@ -105,8 +105,9 @@ export function Nav({ home = "" }: { home?: string }) {
           {[
             ["Say it", `${home}/#say`],
             ["Undo", `${home}/#undo`],
+            ["Screens", `${home}/#screens`],
             ["Security", `${home}/#security`],
-            ["Fun", `${home}/#fun`],
+            ["Amma mode", `${home}/#amma`],
             ["Compare", "/compare.html"],
           ].map(([label, href]) => (
             <a key={label} href={href} className="rounded-full px-3.5 py-1.5 hover:bg-[var(--panel)] hover:text-[var(--text)]">

@@ -10,6 +10,7 @@ import { Segmented } from "../ui/Segmented";
 const ROLE_HINT = {
   owner: "Everything (risky steps still need Touch ID)",
   family: "Everything except risky steps and terminal commands",
+  elder: "Like family, plus Amma mode: slow Tamil, big text, “help” alert",
   kid: "Music, volume, time, jokes and YouTube only",
 } as const;
 type Role = keyof typeof ROLE_HINT;
@@ -34,7 +35,7 @@ export function FamilySettings() {
             return (
               <li key={p} className="flex items-center gap-2 rounded-[8px] bg-[var(--sunken)] px-3 py-1.5 text-[12.5px]">
                 <span className="flex-1 font-medium">{who}</span>
-                <Badge color={r === "owner" ? "var(--accent)" : r === "kid" ? "var(--warn)" : "var(--ok)"}>{r}</Badge>
+                <Badge color={r === "owner" ? "var(--accent)" : r === "kid" ? "var(--warn)" : r === "elder" ? "var(--accent-2, var(--accent))" : "var(--ok)"}>{r}</Badge>
                 {r !== "owner" && (
                   <button aria-label={`Remove ${who}`} onClick={() => send({ type: "profile_remove", name: who })} className="text-[var(--muted)] hover:text-[var(--danger)]">
                     <Trash2 size={13} />
@@ -59,6 +60,7 @@ export function FamilySettings() {
           onChange={setRole}
           options={[
             { value: "family", label: "Family" },
+            { value: "elder", label: "Elder" },
             { value: "kid", label: "Kid" },
           ]}
         />

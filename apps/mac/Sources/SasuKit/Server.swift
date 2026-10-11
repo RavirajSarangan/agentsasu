@@ -219,7 +219,7 @@ public final class CoreServer {
         let words = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
         let speaking = tts && speaker.enabled
         let voiceTask = speaking ? Task { await say(text) } : nil
-        emit(["type": "say_start", "text": words.first ?? "", "lang": lang])
+        emit(["type": "say_start", "text": words.first ?? "", "lang": lang, "big": false])  // Amma mode big text arrives in phase 4b
         for w in words.dropFirst() {
             try? await Task.sleep(nanoseconds: speaking ? 70_000_000 : 30_000_000)
             emit(["type": "say_chunk", "text": " " + w])

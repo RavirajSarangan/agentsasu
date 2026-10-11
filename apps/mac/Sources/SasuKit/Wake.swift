@@ -3,7 +3,7 @@ import Foundation
 /// Spotting the robot's name in a rough transcript. Same rules as voice/wake.py.
 /// Lengths and edit distances use Unicode code points, as Python does.
 public enum Wake {
-    static let latin = #"s[ae]{1,2}(?:s|z|sh)[uoa]"#
+    static let latin = #"s[ae]{1,2}(?:s|z|sh)[uoa]|sh[ae]{1,2}s[uo]"#  // also "Shasu" (Tamil-accented)
     static let tamil = #"(?:சா|ச)(?:சு|சி|ஸு|ஸ|சூ|சோ)"#
     static let tamilShort = ["சாச", "சாஸ", "சச"]
     static let latinAliases: Set<String> = ["sauce", "sasse", "sassu", "saasu", "sasoo", "sassy", "sarsu"]

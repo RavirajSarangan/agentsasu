@@ -90,7 +90,7 @@ public enum FastPath {
         if has(low, #"\b(pause|stop)\b.*\b(music|song|spotify|paattu)\b"#, #"^(pause|pause it|stop music)$"#, #"paattu\s*niruthu"#, #"பாட்ட?ை?\s*நிறுத்து"#) {
             return Fast(calls: [("media_control", ["action": "pause"])], sayEn: "Paused.", sayTa: "நிறுத்திட்டேன்.", kind: "music")
         }
-        if has(low, #"\bplay\b.*\b(music|song|songs|spotify|something)\b"#, "^play$", "^resume", #"(paattu|music|song)\s*(podu|potu|play pannu)"#, #"பாட்டு\s*போடு"#, #"^(பாட்டு|paattu|music|songs?)$"#) {
+        if has(low, #"\bplay\b.*\b(music|song|songs|spotify|something)\b"#, "^play$", "^resume", #"(paattu|music|song)\s*(podu|potu|play pannu)"#, #"பாட்டு\s*போடு"#, #"^(பாட்டு|பாட்ட|paattu|music|songs?)$"#) {
             return Fast(calls: [("media_control", ["action": "play"])], sayEn: "Playing.", sayTa: "பாட்டு போடறேன்.", kind: "music")
         }
 

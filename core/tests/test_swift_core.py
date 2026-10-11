@@ -56,7 +56,14 @@ class Core:
             text=True,
         )
         assert self.p.stdin and self.p.stdout
-        cfg = {"token": self.token, "data_dir": str(data_dir), "vault_key": "ab" * 32, "dev": dev}
+        cfg = {
+            "token": self.token,
+            "data_dir": str(data_dir),
+            "vault_key": "ab" * 32,
+            "dev": dev,
+            "tts": False,
+            "mic": False,
+        }
         self.p.stdin.write(json.dumps(cfg) + "\n")
         self.p.stdin.flush()
         self.port = json.loads(self.p.stdout.readline())["port"]
@@ -144,7 +151,10 @@ def test_rate_limit_size_limit_and_bad_json(core: Core) -> None:
         async with websockets.connect(
             ws_url(core), additional_headers={"Origin": "tauri://localhost"}
         ) as ws:
-            await ws.recv()
+            while (
+                json.loads(await ws.recv())["type"] != "voice_status"
+            ):  # handshake: ready … voice_status
+                pass
             out = []
             await ws.send("not json")
             out.append(json.loads(await ws.recv()))
@@ -169,7 +179,10 @@ def test_control_locks_reach_connected_ui(core: Core) -> None:
         async with websockets.connect(
             ws_url(core), additional_headers={"Origin": "tauri://localhost"}
         ) as ws:
-            await ws.recv()
+            while (
+                json.loads(await ws.recv())["type"] != "voice_status"
+            ):  # handshake: ready … voice_status
+                pass
             core.control({"type": "lock", "reason": "screen"})
             a = json.loads(await asyncio.wait_for(ws.recv(), 5))
             core.control({"type": "unlock", "reason": "screen"})
@@ -376,6 +389,7 @@ FAST_CORPUS = [
     "சதம் க",
     "மணி என்ன",
     "பாட்டு",
+    "பாட்ட",
     "write a poem about rain",
     "Downloads la irukura PDF ellam oru folder-la podu",
     "delete my old screenshots",
@@ -564,6 +578,8 @@ def test_turns_match_python(swift_bin: Path, tmp_path: Path) -> None:
         "data_dir": str(tmp_path / "sw"),
         "vault_key": "ab" * 32,
         "fake_runner": {"log": str(log), "default": "50"},
+        "tts": False,
+        "mic": False,
     }
     assert p.stdin and p.stdout
     p.stdin.write(json.dumps(cfg) + "\n")
@@ -571,7 +587,9 @@ def test_turns_match_python(swift_bin: Path, tmp_path: Path) -> None:
     sw_port = json.loads(p.stdout.readline())["port"]
     try:
         sw_turns = asyncio.run(
-            run_script(f"ws://127.0.0.1:{sw_port}/ws?t={token}", "tauri://localhost", "ready")
+            run_script(
+                f"ws://127.0.0.1:{sw_port}/ws?t={token}", "tauri://localhost", "voice_status"
+            )
         )
     finally:
         p.stdin.close()
@@ -726,6 +744,7 @@ WAKE_CORPUS = [
     "Hey Sasu", "hey saasu open safari", "Hi, Sashu.", "hey sa su", "Hesasul", "Heis azul.", "Sauce", "சாச",
     "சாசு பாட்டு போடு", "சாசி ஒரு பாட", "சாசனம் படி", "I said so", "sausage rolls for the season", "Hey Siri",
     "Downloads lair iroo kira pdf alum list panu.", "He Sasuo, opens a fiery and set the volume to 30.",
+    "Hey Shasu, Open Terminal.", "she said so", "shazam it",
 ]  # fmt: skip
 
 
@@ -983,8 +1002,10 @@ def test_listening_session_matches_python(
         e.get("event") == "caption" for e in events
     )  # the script exercised every mode
     assert sw == py
-    commands = [(e["text"], e["lang"]) for e in events if e.get("event") == "command"]
-    assert ("Play some music.", "en") in commands[2:]  # the follow-up isn't forced into Tamil
+    commands = [
+        (e["text"].lower().strip(".!? "), e["lang"]) for e in events if e.get("event") == "command"
+    ]
+    assert ("play some music", "en") in commands[2:]  # the follow-up isn't forced into Tamil
     assert any(
         "time" in t.lower() for t, _ in commands
     )  # Tara's "Hey Sasu, what's the time?" is heard
@@ -1058,3 +1079,139 @@ def test_python_enrolled_voices_are_recognised_by_swift(
         ],
     )[0]
     assert bad is None
+
+
+# ── phase 3b-2: spoken requests end to end in the Swift core ─────────────────
+
+
+@needs_models
+def test_voice_turns_end_to_end(swift_bin: Path, tmp_path: Path) -> None:
+    import sherpa_onnx as so
+
+    from sasu_core.security.voiceprint import Profile, Voiceprint, VoiceprintVault
+
+    lines = [
+        ("own1", "Rishi", "Hey Sasu, set the volume to thirty."),
+        ("own2", "Rishi", "Hey Sasu."),
+        ("own3", "Rishi", "Play some music."),
+        ("enr1", "Rishi", "Hey Sasu, open Safari please."),
+        ("enr2", "Rishi", "What is the weather like today?"),
+        ("enr3", "Rishi", "Show me the files on my desktop."),
+        ("str1", "Vani", "சாசு, பாட்டு போடு."),
+        ("str2", "Vani", "Hey Sasu, open Terminal."),
+    ]
+    wav = {}
+    for key, voice, text in lines:
+        aiff, w = tmp_path / f"{key}.aiff", tmp_path / f"{key}.wav"
+        subprocess.run(["say", "-v", voice, "-o", str(aiff), text], check=True)
+        subprocess.run(
+            ["afconvert", "-f", "WAVE", "-d", "LEI16@16000", "-c", "1", str(aiff), str(w)],
+            check=True,
+        )
+        wav[key] = w
+
+    # Enrol the owner (Rishi) with the Python core's vault, as a real user would have.
+    ex = so.SpeakerEmbeddingExtractor(
+        so.SpeakerEmbeddingExtractorConfig(
+            model=str(MODELS / "wespeaker_en_voxceleb_resnet34.onnx"), num_threads=2
+        )
+    )
+
+    def emb(p: Path) -> list[float]:
+        s = ex.create_stream()
+        s.accept_waveform(sample_rate=16000, waveform=load_wav(p))
+        s.input_finished()
+        return list(ex.compute(s))
+
+    data = tmp_path / "data"
+    data.mkdir()
+    key = "ab" * 32
+    VoiceprintVault(data / "voiceprint.bin", key).upsert(
+        Profile(
+            "Raviraj", "owner", Voiceprint.enroll([emb(wav[k]) for k in ("enr1", "enr2", "enr3")])
+        )
+    )
+
+    log = tmp_path / "calls.jsonl"
+    token = secrets.token_urlsafe(32)
+    cfg = {"token": token, "data_dir": str(data), "vault_key": key, "models_dir": str(MODELS), "mic": False, "tts": False,
+           "fake_runner": {"log": str(log), "default": "50"}}  # fmt: skip
+    p = subprocess.Popen(
+        [str(swift_bin), "--stdin-config"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+    )
+    assert p.stdin and p.stdout
+    p.stdin.write(json.dumps(cfg) + "\n")
+    p.stdin.flush()
+    port = json.loads(p.stdout.readline())["port"]
+
+    def feed(k: str) -> None:
+        assert p.stdin
+        p.stdin.write(json.dumps({"type": "feed_wav", "path": str(wav[k])}) + "\n")
+        p.stdin.flush()
+
+    async def go() -> dict[str, list[dict[str, Any]]]:
+        out: dict[str, list[dict[str, Any]]] = {}
+        async with websockets.connect(
+            f"ws://127.0.0.1:{port}/ws?t={token}",
+            additional_headers={"Origin": "tauri://localhost"},
+        ) as ws:
+
+            async def until(pred: Any, timeout: float = 40) -> list[dict[str, Any]]:
+                got: list[dict[str, Any]] = []
+                while True:
+                    try:
+                        e = json.loads(await asyncio.wait_for(ws.recv(), timeout))
+                    except TimeoutError:
+                        raise AssertionError(f"timed out after {sorted(out)}; got {got}") from None
+                    if e["type"] != "level":
+                        got.append(e)
+                    if pred(e):
+                        return got
+
+            await until(lambda e: e["type"] == "voice_status" and e["state"] == "listening", 60)
+            feed("own1")
+            out["owner_volume"] = await until(lambda e: e["type"] == "turn_done")
+            feed("own2")
+            out["owner_wake"] = await until(lambda e: e["type"] == "listening")
+            feed("own3")
+            out["owner_followup"] = await until(lambda e: e["type"] == "turn_done")
+            feed("str1")
+            out["stranger_music"] = await until(lambda e: e["type"] == "turn_done")
+            feed("str2")
+            out["stranger_terminal"] = await until(lambda e: e["type"] == "turn_done")
+            await ws.send(json.dumps({"type": "ptt_start"}))
+            out["ptt"] = await until(lambda e: e["type"] == "listening")
+        return out
+
+    try:
+        r = asyncio.run(go())
+    finally:
+        p.stdin.close()
+        p.wait(10)
+        p.stdout.close()
+
+    def kinds(k: str) -> list[str]:
+        return [e["type"] for e in r[k]]
+
+    def spoken(k: str) -> str:
+        return "".join(e["text"] for e in r[k] if e["type"] in ("say_start", "say_chunk"))
+
+    t = next(e for e in r["owner_volume"] if e["type"] == "transcript")
+    assert (
+        kinds("owner_volume")[:2] == ["wake", "listening"] and "volume to 30" in t["text"].lower()
+    )
+    assert spoken("owner_volume") == "Volume 30." and r["owner_volume"][-1]["ok"] is True
+    assert "transcript" not in kinds("owner_wake")  # just "Hey Sasu" → listening, no turn
+    assert spoken("owner_followup") == "Playing."
+    assert (
+        "intruder" in kinds("stranger_music") and spoken("stranger_music") == "பாட்டு போடறேன்."
+    )  # guests may play music
+    assert "only my owner" in spoken("stranger_terminal")  # but not open apps
+    assert kinds("ptt") == ["wake", "listening"]
+    calls = [json.loads(line)[:-1] for line in log.read_text().splitlines()]
+    assert any(c[-1] == "30" for c in calls)  # volume really set (fake runner)
+    assert not any(c[:2] == ["open", "-a"] for c in calls)  # Terminal never opened
+    audit = (
+        sqlite3.connect(data / "audit.sqlite").execute("SELECT kind, data FROM audit").fetchall()
+    )
+    assert ("speaker", '{"name": "Raviraj", "role": "owner"}') in audit

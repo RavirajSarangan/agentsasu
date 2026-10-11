@@ -168,8 +168,10 @@ guard let audit = try? AuditLog(path: dataDir + "/audit.sqlite") else { fail("ca
 let runner: Runner = (cfg["fake_runner"] as? [String: Any]).map { FakeRunner(config: $0) } ?? ProcessRunner()
 guard let server = try? CoreServer(token: token, audit: audit, dev: dev, dataDir: dataDir, runner: runner) else { fail("can't open the undo journal") }
 guard let port = try? server.start() else { fail("can't listen on 127.0.0.1") }
+server.configureVoice(dataDir: dataDir, vaultKey: vaultKey, modelsDir: cfg["models_dir"] as? String ?? dataDir + "/models", tts: cfg["tts"] as? Bool ?? true)
 audit.append("start", ["version": sasuVersion, "demo": false, "dev": dev, "core": "swift"])
 print("{\"port\": \(port)}")
+server.bootVoice(mic: cfg["mic"] as? Bool ?? true)
 
 // Trusted control channel; EOF means the app went away.
 Thread.detachNewThread {

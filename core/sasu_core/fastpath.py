@@ -112,7 +112,7 @@ def parse(text: str) -> Fast | None:
         r"^resume",
         r"(paattu|music|song)\s*(podu|potu|play pannu)",
         r"பாட்டு\s*போடு",
-        r"^(பாட்டு|paattu|music|songs?)$",
+        r"^(பாட்டு|பாட்ட|paattu|music|songs?)$",  # "பாட்ட": Whisper often clips the ending
     ):
         return Fast([("media_control", {"action": "play"})], "Playing.", "பாட்டு போடறேன்.", "music")
 

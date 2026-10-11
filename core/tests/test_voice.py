@@ -30,6 +30,9 @@ OWNER = [[1.0, 0.1, 0.0, 0.2], [0.9, 0.15, 0.05, 0.25], [1.1, 0.05, 0.0, 0.18]]
         ),
         ("Heis azul.", True, ""),
         ("Hey Sasuar, open Safari", True, "open safari"),
+        ("Hey Shasu, Open Terminal.", True, "open terminal"),  # Tamil-accented, as Whisper hears it
+        ("she said so", False, ""),
+        ("shazam it", False, ""),
         ("சாசு பாட்டு போடு", True, "பாட்டு போடு"),
         ("சாசி ஒரு பாட", True, "ஒரு பாட"),
         ("I said so", False, ""),

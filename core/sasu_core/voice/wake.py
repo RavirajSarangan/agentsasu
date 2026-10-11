@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import re
 
-# s + a/e vowel(s) + s/z/sh + u/o/a vowel  →  sasu, saasu, sazu, sashu, sesu, sasoo…
-LATIN = re.compile(r"s[ae]{1,2}(?:s|z|sh)[uoa]")
+# s(h) + a/e vowel(s) + s/z/sh + u/o/a vowel  →  sasu, shasu, saasu, sazu, sashu, sesu, sasoo…
+LATIN = re.compile(r"s[ae]{1,2}(?:s|z|sh)[uoa]|sh[ae]{1,2}s[uo]")  # also "Shasu" (Tamil-accented)
 TAMIL = re.compile(r"(?:சா|ச)(?:சு|சி|ஸு|ஸ|சூ|சோ)")
 # Whole short Tamil words that are "Sasu" with the last vowel swallowed: சாச, சாஸ், சச
 TAMIL_SHORT = ("சாச", "சாஸ", "சச")

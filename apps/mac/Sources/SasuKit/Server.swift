@@ -11,17 +11,29 @@ public final class CoreServer {
     static let maxMessage = 16_384
 
     let token: String
-    let audit: AuditLog
+    public let audit: AuditLog
     public var executor: Executor!
     let journal: UndoJournal
     private var current: Task<Void, Never>?
     private let pendingLock = NSLock()
     private var pending: [String: (kind: String, cont: CheckedContinuation<Bool, Never>)] = [:]
     let origins: Set<String>
-    let queue = DispatchQueue(label: "sasu.core.server")
+    public let queue = DispatchQueue(label: "sasu.core.server")
     private var listener: NWListener?
     private var clients: [ObjectIdentifier: Client] = [:]
     public private(set) var locks: Set<String> = []
+
+    // Voice
+    public let speaker = Speaker()
+    public var tts = true
+    public var voice: VoiceRuntime?
+    var vault: VoiceprintVault?
+    var modelsDir = ""
+    var ownerVerifiedAt = Date.distantPast
+    var lastSpeaker = ("Owner", "owner")
+    var lastLang = "en"
+    lazy var voiceAdapter = VoiceAdapter(server: self)
+    var voiceLoading = false
 
     public init(token: String, audit: AuditLog, dev: Bool, dataDir: String, runner: Runner = ProcessRunner()) throws {
         self.token = token
@@ -109,6 +121,7 @@ public final class CoreServer {
     @discardableResult
     func stopTurn() -> Bool {
         denyAll()
+        speaker.stop()
         let running = pendingLock.withLock { () -> Bool in
             defer { activeTurn = 0 }
             return activeTurn != 0
@@ -118,28 +131,127 @@ public final class CoreServer {
         return running
     }
 
+    /// Streams the caption word by word while the Mac voice speaks it.
     func speak(_ text: String, _ lang: String) async {
         let words = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+        let speaking = tts && speaker.enabled
+        let voiceTask = speaking ? Task { await say(text) } : nil
         emit(["type": "say_start", "text": words.first ?? "", "lang": lang])
         for w in words.dropFirst() {
-            try? await Task.sleep(nanoseconds: 30_000_000)
+            try? await Task.sleep(nanoseconds: speaking ? 70_000_000 : 30_000_000)
             emit(["type": "say_chunk", "text": " " + w])
         }
+        await voiceTask?.value
         emit(["type": "say_end"])
     }
 
-    func textTurn(_ raw: String) async {
+    /// Half-duplex: while Sasu talks, the mic only listens for "stop".
+    func say(_ text: String) async {
+        voice?.listener.setSpeaking(true)
+        await speaker.say(text)
+        voice?.listener.setSpeaking(false)
+    }
+
+    // MARK: voice
+
+    public func configureVoice(dataDir: String, vaultKey: String, modelsDir: String, tts: Bool) {
+        self.modelsDir = modelsDir
+        self.tts = tts
+        speaker.enabled = tts
+        vault = VoiceprintVault(path: dataDir + "/voiceprint.bin", keyHex: vaultKey)
+    }
+
+    func profiles() -> [Profile] { (try? vault?.loadProfiles()) ?? [] }
+
+    func voiceStatus() -> [String: Any?] {
+        let ps = profiles()
+        let ready = voice != nil
+        let state = ready ? "listening" : voiceLoading ? "loading" : "missing"
+        return ["type": "voice_status", "state": state, "progress": ready ? 1.0 : 0.0,
+                "detail": ready ? "Listening for “Hey Sasu”" : voiceLoading ? "Loading voice models…" : "", "size_mb": 707,
+                "enrolled": ps.contains { $0.role == "owner" }, "profiles": ps.map { "\($0.name) (\($0.role))" }]
+    }
+
+    /// Start listening if the voice models are on disk. Loading takes seconds, so it runs
+    /// in the background; the server keeps answering the UI meanwhile.
+    public func bootVoice(mic: Bool) {
+        let dir = modelsDir
+        guard VoiceRuntime.modelsReady(dir) else { return emit(voiceStatus()) }
+        voiceLoading = true
+        emit(voiceStatus())
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self, let v = VoiceRuntime(modelsDir: dir) else { return }
+            v.listener.delegate = self.voiceAdapter
+            v.onLevel = { [weak self] rms in self?.emit(["type": "level", "rms": (rms * 1000).rounded() / 1000]) }
+            v.onTimeout = { [weak self] in self?.emit(["type": "idle"]) }
+            do {
+                try v.start(mic: mic)
+            } catch {
+                return self.emit(["type": "voice_status", "state": "error", "progress": 0.0, "detail": "Microphone problem: \(error)", "size_mb": 707, "enrolled": false, "profiles": [] as [String]])
+            }
+            self.queue.async {
+                self.voiceLoading = false
+                self.voice = v
+                self.audit.append("voice", ["state": "listening"])
+                self.emit(self.voiceStatus())
+            }
+        }
+    }
+
+    func voiceCommand(_ heard: Heard) async {
+        if !locks.isEmpty {
+            audit.append("rejected", ["reason": "locked", "command": "voice"])
+            return await speak("I'm locked right now.", "en")
+        }
+        let lang = heard.lang == "ta" ? "ta" : "en"
+        lastLang = lang
+        var role = "owner"
+        let ps = profiles()
+        let recently = Date().timeIntervalSince(ownerVerifiedAt) < 60
+        if !ps.isEmpty {
+            let (who, score) = heard.embedding.map { identify(ps, $0) } ?? (nil, 0)
+            if let who {
+                ownerVerifiedAt = Date()
+                lastSpeaker = (who.name, who.role)
+                role = who.role
+            } else if heard.embedding == nil, recently {
+                role = lastSpeaker.1  // too short to check; same person moments ago
+            } else if heard.embedding == nil {
+                await speak(lang != "ta" ? "Sorry, say that again?" : "மறுபடியும் சொல்லுங்க?", lang)
+                voice?.listener.arm()
+                return
+            } else {
+                audit.append("intruder", ["text": heard.text, "score": score])
+                emit(["type": "intruder", "text": heard.text, "score": score, "count": 1])
+                audit.append("guest", ["score": score])
+                role = "guest"
+            }
+        }
+        voice?.listener.followUp = true  // keep listening after the reply, no wake word needed
+        audit.append("speaker", ["name": role != "guest" ? lastSpeaker.0 : "guest", "role": role])
+        let text = heard.text
+        start { [weak self] in await self?.textTurn(text, role: role, lang: lang) }
+    }
+
+    func acknowledgeWake() async {
+        voice?.listener.followUp = true
+        voice?.listener.followTimeout = 8
+        await say(lastLang == "ta" ? "சொல்லுங்க?" : "Yes?")
+    }
+
+    func textTurn(_ raw: String, role: String = "owner", lang forced: String? = nil) async {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lang = detectLang(text)
-        if FastPath.match(Self.undoPattern, text) != nil { return await undoTurn(nil) }
+        let lang = forced ?? detectLang(text)
+        let guest = role == "guest" || role == "kid"
+        if !guest, FastPath.match(Self.undoPattern, text) != nil { return await undoTurn(nil) }
         guard let fast = FastPath.parse(text) else {
             emit(["type": "transcript", "text": text, "lang": lang])
             emit(["type": "error", "code": "not_implemented", "message": "The Swift core can't answer that yet."])
             emit(["type": "turn_done", "ok": false])
             return
         }
-        let turn = Turn(lang: lang)
-        audit.append("command", ["source": "owner", "text": text, "turn": turn.id, "fast": fast.kind])
+        let turn = Turn(lang: lang, role: role)
+        audit.append("command", ["source": role == "guest" ? "guest" : "owner", "text": text, "turn": turn.id, "fast": fast.kind])
         emit(["type": "transcript", "text": text, "lang": lang])
         var ok = true
         var content = ""
@@ -148,7 +260,8 @@ public final class CoreServer {
             ok = ok && r.hasPrefix("OK")
             content += r
         }
-        let reply = !ok ? (lang != "ta" ? "That didn't work." : "அது சரியா வேலை செய்யல.")
+        let reply = !ok && guest && content.contains("BLOCKED") ? (lang != "ta" ? "Sorry, only my owner can do that." : "மன்னிக்கவும், என் owner மட்டும் தான் இதை செய்ய முடியும்.")
+            : !ok ? (lang != "ta" ? "That didn't work." : "அது சரியா வேலை செய்யல.")
             : fast.kind == "battery" ? batteryReply(content, lang)
             : (lang == "ta" ? fast.sayTa : fast.sayEn)
         await speak(reply, lang)
@@ -222,6 +335,11 @@ public final class CoreServer {
             case "secret":
                 // Keys are held in memory only and never logged; phase 1 only notes presence.
                 audit.append("key", ["provider": msg["provider"] as? String ?? "", "present": !((msg["key"] as? String) ?? "").isEmpty])
+            case "feed_wav":
+                // Trusted channel only (the shell / tests): play a WAV file into the listener.
+                if let path = msg["path"] as? String, let audio = readWav(path) {
+                    voice?.feed([Float](repeating: 0, count: 9600) + audio + [Float](repeating: 0, count: 32000))
+                }
             case "auth_result":
                 if let id = msg["id"] as? String { resolve(id, "auth", (msg["ok"] as? Bool) ?? false) }
             case "cancel":
@@ -269,6 +387,7 @@ public final class CoreServer {
             client.upgrade(acceptKey: WebSocket.accept(key: key))
             client.send(WebSocket.text(PyJSON.compact(["type": "ready", "version": sasuVersion, "demo": false])))
             if !locks.isEmpty { client.send(WebSocket.text(PyJSON.compact(["type": "locked", "reasons": locks.sorted()]))) }
+            client.send(WebSocket.text(PyJSON.compact(voiceStatus())))
             return
         }
         switch path {
@@ -298,7 +417,7 @@ public final class CoreServer {
         guard let obj = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any], let type = obj["type"] as? String else {
             return client.send(WebSocket.text(#"{"type":"error","code":"bad_command","message":"Expected a JSON object with a type"}"#))
         }
-        if ["text_command", "undo"].contains(type), !locks.isEmpty {
+        if ["text_command", "undo", "ptt_start"].contains(type), !locks.isEmpty {
             audit.append("rejected", ["reason": "locked", "command": type])
             return client.send(WebSocket.text(#"{"type":"error","code":"locked","message":"Sasu is locked"}"#))
         }
@@ -309,6 +428,14 @@ public final class CoreServer {
         case "undo":
             let id = obj["turn_id"] as? String
             start { [weak self] in await self?.undoTurn(id) }
+        case "ptt_start":
+            if let v = voice {
+                v.listener.arm()
+                emit(["type": "wake", "source": "hotkey"])
+                emit(["type": "listening"])
+            } else {
+                client.send(WebSocket.text(#"{"type":"error","code":"no_mic","message":"Turn on voice in Settings → Voice (one-time download), or type in the panel."}"#))
+            }
         case "confirm_response":
             resolve(obj["id"] as? String ?? "", "confirm", obj["approved"] as? Bool ?? false)
         case "cancel":
@@ -444,4 +571,31 @@ final class Client {
         default: break
         }
     }
+}
+
+/// Listener → server (like CoreVoice in the Python core).
+final class VoiceAdapter: ListenerDelegate, @unchecked Sendable {
+    unowned let server: CoreServer
+    init(server: CoreServer) { self.server = server }
+
+    func onWake(commandFollows: Bool) async {
+        guard server.locks.isEmpty else { return }
+        server.audit.append("wake", ["source": "wakeword"])
+        server.emit(["type": "wake", "source": "wakeword"])
+        server.emit(["type": "listening"])
+        if !commandFollows, server.tts { await server.acknowledgeWake() }
+    }
+
+    func onCommand(_ heard: Heard) async { await server.voiceCommand(heard) }
+
+    func onStop() async {
+        server.audit.append("cancel", ["source": "voice"])
+        if server.stopTurn() {
+            server.emit(["type": "error", "code": "cancelled", "message": "Stopped"])
+            server.emit(["type": "turn_done", "ok": false])
+        }
+    }
+
+    func onCaption(_ text: String, lang: String) async {}  // meeting notes: ported with phase 4
+    func onEnrollSample(_ embedding: [Float]) async {}  // enrolment: ported with phase 4
 }

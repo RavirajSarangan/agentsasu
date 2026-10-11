@@ -32,6 +32,7 @@ from tests.conftest import TOKEN
         # Tamil
         ("சாசு, பாட்டு போடு", "media_control", {"action": "play"}),
         ("அடுத்த பாட்டு", "media_control", {"action": "next"}),
+        ("பாட்ட", "media_control", {"action": "play"}),  # clipped "பாட்டு"
         ("சத்தம் ௫௦", "system_volume", {"level": 50}),
         ("சத்தம் குறை", "system_volume_step", {"delta": -15}),
     ],

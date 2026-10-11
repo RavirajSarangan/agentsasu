@@ -25,7 +25,7 @@ public enum PyJSON {
         }
     }
 
-    static func quote(_ s: String) -> String {
+    public static func quote(_ s: String) -> String {
         var out = "\""
         for u in s.unicodeScalars {
             switch u {

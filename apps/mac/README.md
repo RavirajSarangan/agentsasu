@@ -8,7 +8,8 @@ protocol and file formats as the Python core, and is checked against it by
 | Phase | What | Status |
 | --- | --- | --- |
 | 1 | Local server (127.0.0.1, token, origin checks, rate limits), stdin control channel, hash-chained audit log (same SQLite file), secret redaction | ✅ done — 268 KB binary |
-| 2 | Tools, Executor, undo journal, policy, roles, trap files, leak guard, fast path | next |
+| 2a | Policy (paths, shell commands incl. a faithful `shlex` port), roles, trap files, leak guard, instant-command parser, undo journal | ✅ done — parity-tested on a large corpus |
+| 2b | Tools and the Executor (policy → approval → run → journal → audit), turns over the WebSocket | next |
 | 3 | Voice: sherpa-onnx (VAD, Whisper, voiceprint), AVAudioEngine mic, AVSpeechSynthesizer, Touch ID | |
 | 4 | AI brain (URLSession, OpenAI-compatible), then the app switches to this core | |
 | 5 | Optional: SwiftUI shell, App Intents / Shortcuts | |

@@ -24,6 +24,31 @@ if let i = args.firstIndex(of: "--verify-audit"), i + 1 < args.count {
     exit(s.ok ? 0 : 1)
 }
 
+// Pure decision functions, one JSON request per line (for the parity tests).
+if args.contains("--eval") {
+    while let line = readLine() {
+        guard let q = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any] else { print("null"); continue }
+        let a = q["args"] as? [String: Any] ?? [:]
+        switch q["fn"] as? String {
+        case "shell": print(PyJSON.quote(Policy.shell(q["cmd"] as? String ?? "").rawValue))
+        case "path": print(PyJSON.quote(Policy.path(q["path"] as? String ?? "", write: q["write"] as? Bool ?? false).rawValue))
+        case "role":
+            let d = Decision(rawValue: q["decision"] as? String ?? "safe") ?? .safe
+            print(PyJSON.quote(Roles.allowed(role: q["role"] as? String ?? "", tool: q["tool"] as? String ?? "", args: a, decision: d).rawValue))
+        case "leak": print(LeakGuard.leaks(tool: q["tool"] as? String ?? "", args: a, untrusted: q["untrusted"] as? [String] ?? []) ? "true" : "false")
+        case "canary": print(Canaries(stateFile: q["state"] as? String ?? "").trippedBy(a).map(PyJSON.quote) ?? "null")
+        case "fast":
+            if let f = FastPath.parse(q["text"] as? String ?? "") {
+                print(PyJSON.compact(["calls": f.calls.map { [$0.0, $0.1] as [Any?] }, "say_en": f.sayEn, "say_ta": f.sayTa, "kind": f.kind]))
+            } else {
+                print("null")
+            }
+        default: print("null")
+        }
+    }
+    exit(0)
+}
+
 if args.contains("--redact") {
     while let line = readLine(strippingNewline: false) { print(Redact.text(line), terminator: "") }
     exit(0)

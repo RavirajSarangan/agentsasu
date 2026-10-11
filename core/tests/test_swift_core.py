@@ -34,11 +34,13 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="session")
 def swift_bin() -> Path:
-    subprocess.run(
+    r = subprocess.run(
         ["swift", "build", "-c", "release", "--package-path", str(PKG)],
-        check=True,
         capture_output=True,
+        text=True,
     )
+    errors = [line for line in (r.stdout + r.stderr).splitlines() if "error" in line]
+    assert r.returncode == 0, "swift build failed:\n" + "\n".join(errors)[:4000]
     return BIN
 
 
@@ -148,7 +150,9 @@ def test_rate_limit_size_limit_and_bad_json(core: Core) -> None:
             await ws.send("x" * 20_000)
             out.append(json.loads(await ws.recv()))
             for _ in range(30):
-                await ws.send(json.dumps({"type": "skill_run", "name": "x"}))  # not ported yet → not_implemented
+                await ws.send(
+                    json.dumps({"type": "skill_run", "name": "x"})
+                )  # not ported yet → not_implemented
                 out.append(json.loads(await ws.recv()))
             return out
 

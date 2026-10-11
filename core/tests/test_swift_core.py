@@ -148,7 +148,7 @@ def test_rate_limit_size_limit_and_bad_json(core: Core) -> None:
             await ws.send("x" * 20_000)
             out.append(json.loads(await ws.recv()))
             for _ in range(30):
-                await ws.send(json.dumps({"type": "cancel"}))
+                await ws.send(json.dumps({"type": "skill_run", "name": "x"}))  # not ported yet → not_implemented
                 out.append(json.loads(await ws.recv()))
             return out
 
@@ -474,3 +474,236 @@ def test_roles_leaks_and_canaries_match_python(swift_bin: Path, tmp_path: Path) 
     assert [
         (q, g, w) for q, g, w in zip(role_q + leak_q + canary_q, got, want, strict=True) if g != w
     ] == []
+
+
+# ── phase 2b: tools, executor and turns must match Python ────────────────────
+
+from sasu_core.brain.agent import Executor as PyExecutor  # noqa: E402
+from sasu_core.brain.agent import Turn as PyTurn  # noqa: E402
+from sasu_core.tools.runtime import Proc  # noqa: E402
+from sasu_core.undo import Journal, undo_turn  # noqa: E402
+
+TURN_SCRIPT = ["volume 30", "open Safari", "next song", "dark mode", "louder", "mute", "battery",
+               "open youtube", "சத்தம் ௫௦", "Sasu, undo", "Sasu, undo", "pause the music"]  # fmt: skip
+
+
+def normalise(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for e in events:
+        e = {k: v for k, v in e.items() if k not in ("id", "turn_id")}
+        if e["type"] == "say_chunk":
+            continue  # compared through the joined text below
+        out.append(e)
+    return out
+
+
+def said(events: list[dict[str, Any]]) -> str:
+    return "".join(e["text"] for e in events if e["type"] in ("say_start", "say_chunk"))
+
+
+async def run_script(url: str, origin: str, ready_until: str) -> list[list[dict[str, Any]]]:
+    turns = []
+    async with websockets.connect(url, additional_headers={"Origin": origin}) as ws:
+        while json.loads(await ws.recv())["type"] != ready_until:
+            pass
+        for text in TURN_SCRIPT:
+            await ws.send(json.dumps({"type": "text_command", "text": text}))
+            events: list[dict[str, Any]] = []
+            while not events or events[-1]["type"] != "turn_done":
+                events.append(json.loads(await asyncio.wait_for(ws.recv(), 10)))
+            turns.append(events)
+    return turns
+
+
+def test_turns_match_python(swift_bin: Path, tmp_path: Path) -> None:
+    import threading
+
+    import uvicorn
+
+    from sasu_core.server import create_app
+    from tests.conftest import FakeRun
+
+    # Python core, real server on a free port, recording runner
+    app = create_app("p" * 43, data_dir=tmp_path / "py", delay=0.01)
+    py_core = app.state.core
+    py_core.runner = FakeRun()
+    py_core.speaker.enabled = False
+    py_core.settings.tts = False
+    sock = __import__("socket").socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+    t = threading.Thread(target=server.run, daemon=True)
+    t.start()
+    while not server.started:
+        __import__("time").sleep(0.05)
+    try:
+        py_turns = asyncio.run(
+            run_script(
+                f"ws://127.0.0.1:{port}/ws?t={'p' * 43}", "tauri://localhost", "voice_status"
+            )
+        )
+    finally:
+        server.should_exit = True
+        t.join(5)
+
+    # Swift core with a recording runner configured through the trusted stdin config
+    log = tmp_path / "swift-calls.jsonl"
+    p = subprocess.Popen(
+        [str(swift_bin), "--stdin-config"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+    )
+    token = secrets.token_urlsafe(32)
+    cfg = {
+        "token": token,
+        "data_dir": str(tmp_path / "sw"),
+        "vault_key": "ab" * 32,
+        "fake_runner": {"log": str(log), "default": "50"},
+    }
+    assert p.stdin and p.stdout
+    p.stdin.write(json.dumps(cfg) + "\n")
+    p.stdin.flush()
+    sw_port = json.loads(p.stdout.readline())["port"]
+    try:
+        sw_turns = asyncio.run(
+            run_script(f"ws://127.0.0.1:{sw_port}/ws?t={token}", "tauri://localhost", "ready")
+        )
+    finally:
+        p.stdin.close()
+        p.wait(5)
+        p.stdout.close()
+
+    for text, a, b in zip(TURN_SCRIPT, py_turns, sw_turns, strict=True):
+        assert said(a) == said(b), text
+        assert normalise(a) == normalise(b), text
+    sw_calls = [json.loads(line)[:-1] for line in log.read_text().splitlines()]  # last item = stdin
+    assert sw_calls == py_core.runner.calls
+
+
+def py_call(
+    tmp: Path,
+    tool: str,
+    args: dict[str, Any],
+    approve: bool,
+    turn_id: str = "t1",
+    untrusted: bool = False,
+) -> dict[str, Any]:
+    prompts: list[list[str]] = []
+    events: list[str] = []
+
+    async def emit(e: Any) -> None:
+        events.append(e.type)
+
+    async def approver(prompt: str, risk: str, lang: str, confirmed: bool) -> bool:
+        prompts.append([prompt, risk])
+        return approve
+
+    async def run(a: Any, timeout: float = 15, stdin: str | None = None) -> Proc:
+        return Proc(0, "", "")
+
+    async def go() -> str:
+        ex = PyExecutor(
+            emit,
+            approver,
+            AuditLog(tmp / "audit.sqlite"),
+            Journal(tmp / "undo.sqlite"),
+            tmp / "bin",
+            run,
+            canaries=Canaries(tmp / "canaries.json"),
+        )
+        turn = PyTurn(turn_id, "en")
+        turn.untrusted_seen = untrusted
+        return await ex.call(tool, args, turn)
+
+    return {"result": asyncio.run(go()), "approvals": prompts, "events": events}
+
+
+def make_files(root: Path) -> dict[str, Path]:
+    home = root / "files"
+    (home / "Downloads").mkdir(parents=True)
+    for n in ("a.pdf", "b.pdf", "keep.txt"):
+        (home / "Downloads" / n).write_text(n)
+    return {"dl": home / "Downloads"}
+
+
+@pytest.mark.parametrize("approve", [True, False])
+def test_file_tools_and_undo_match_python(swift_bin: Path, tmp_path: Path, approve: bool) -> None:
+    results = {}
+    for impl in ("py", "sw"):
+        root = tmp_path / impl
+        root.mkdir()
+        f = make_files(root)
+        calls = [
+            (
+                "files_move",
+                {
+                    "paths": [str(f["dl"] / "a.pdf"), str(f["dl"] / "b.pdf")],
+                    "destination": str(f["dl"] / "PDFs"),
+                },
+            ),
+            ("files_trash", {"paths": [str(f["dl"] / "keep.txt")]}),
+            ("files_new_folder", {"path": str(f["dl"] / "New")}),
+            ("files_rename", {"path": str(f["dl"] / "New"), "new_name": "Renamed"}),
+            ("files_list", {"folder": str(f["dl"])}),
+            ("shell_run", {"command": "sudo rm -rf /"}),
+            ("web_open", {"url": "javascript:alert(1)"}),
+        ]
+        outs = []
+        for tool, args in calls:
+            if impl == "py":
+                outs.append(py_call(root, tool, args, approve))
+            else:
+                q = {
+                    "fn": "call",
+                    "tool": tool,
+                    "args": args,
+                    "approve": approve,
+                    "data_dir": str(root),
+                    "turn": "t1",
+                }
+                outs.append(swift_eval(swift_bin, [q])[0])
+        tree_before_undo = sorted(
+            str(p.relative_to(root / "files")) for p in (root / "files").rglob("*")
+        )
+        if impl == "py":
+
+            async def undo(r: Path = root) -> list[str]:
+                async def run(a: Any, timeout: float = 15, stdin: str | None = None) -> Proc:
+                    return Proc(0, "", "")
+
+                from sasu_core.tools import ToolContext
+
+                j = Journal(r / "undo.sqlite")
+                _, items = await undo_turn(j, "t1", ToolContext("t1", j, r / "bin", run))
+                return items
+
+            items = asyncio.run(undo())
+        else:
+            items = swift_eval(swift_bin, [{"fn": "undo", "turn": "t1", "data_dir": str(root)}])[0][
+                "items"
+            ]
+        tree_after = sorted(str(p.relative_to(root / "files")) for p in (root / "files").rglob("*"))
+        results[impl] = (outs, tree_before_undo, items, tree_after)
+    py, sw = results["py"], results["sw"]
+    for (tool, _), a, b in zip(
+        [
+            ("move", 0),
+            ("trash", 0),
+            ("new", 0),
+            ("rename", 0),
+            ("list", 0),
+            ("shell", 0),
+            ("web", 0),
+        ],
+        py[0],
+        sw[0],
+        strict=True,
+    ):
+        assert a["approvals"] == b["approvals"], tool
+        assert a["events"] == b["events"], tool
+        assert a["result"].split("\n")[0] == b["result"].split("\n")[0], tool
+    assert py[1:] == sw[1:]
+    if approve:
+        assert "Downloads/PDFs/a.pdf" in py[1] and py[3] == sorted(
+            ["Downloads", "Downloads/a.pdf", "Downloads/b.pdf", "Downloads/keep.txt"]
+        )

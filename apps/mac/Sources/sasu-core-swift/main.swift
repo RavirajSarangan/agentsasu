@@ -43,6 +43,36 @@ if args.contains("--eval") {
             } else {
                 print("null")
             }
+        case "call", "undo":
+            // One executor call (or an undo) in a sandbox data dir, with a scripted yes/no.
+            let dir = q["data_dir"] as? String ?? NSTemporaryDirectory()
+            let log = AuditLog.shared(dir)
+            let journal = try! UndoJournal(path: dir + "/undo.sqlite")
+            var prompts: [[String]] = []
+            var events: [String] = []
+            let answer = q["approve"] as? Bool ?? false
+            let runner = FakeRunner(config: ["log": dir + "/calls.jsonl", "default": q["default"] as? String ?? ""])
+            let ex = Executor(
+                emit: { events.append(($0["type"] as? String) ?? "") },
+                approve: { prompt, risk, _, _ in prompts.append([prompt, risk.rawValue]); return answer },
+                audit: log, journal: journal, holding: dir + "/bin", runner: runner,
+                canaries: Canaries(stateFile: dir + "/canaries.json"))
+            let done = DispatchSemaphore(value: 0)
+            var out: [String: Any?] = [:]
+            Task {
+                if q["fn"] as? String == "undo" {
+                    let (ok, items) = await ex.undo(turn: q["turn"] as? String ?? "")
+                    out = ["ok": ok, "items": items]
+                } else {
+                    let turn = Turn(id: q["turn"] as? String ?? Turn.newID(), lang: "en", role: q["role"] as? String ?? "owner")
+                    turn.untrustedSeen = q["untrusted_seen"] as? Bool ?? false
+                    let r = await ex.call(q["tool"] as? String ?? "", a, turn)
+                    out = ["result": r, "approvals": prompts, "events": events]
+                }
+                done.signal()
+            }
+            done.wait()
+            print(PyJSON.compact(out))
         default: print("null")
         }
     }
@@ -64,7 +94,9 @@ let dev = cfg["dev"] as? Bool ?? false
 
 try? FileManager.default.createDirectory(atPath: dataDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
 guard let audit = try? AuditLog(path: dataDir + "/audit.sqlite") else { fail("can't open the audit log") }
-let server = CoreServer(token: token, audit: audit, dev: dev)
+// Tests can swap in a recording runner through the trusted stdin config (never the network).
+let runner: Runner = (cfg["fake_runner"] as? [String: Any]).map { FakeRunner(config: $0) } ?? ProcessRunner()
+guard let server = try? CoreServer(token: token, audit: audit, dev: dev, dataDir: dataDir, runner: runner) else { fail("can't open the undo journal") }
 guard let port = try? server.start() else { fail("can't listen on 127.0.0.1") }
 audit.append("start", ["version": sasuVersion, "demo": false, "dev": dev, "core": "swift"])
 print("{\"port\": \(port)}")

@@ -35,6 +35,16 @@ public final class AuditLog {
 
     deinit { sqlite3_close(db) }
 
+    nonisolated(unsafe) private static var opened: [String: AuditLog] = [:]
+
+    /// One log per data dir for the --eval harness.
+    public static func shared(_ dir: String) -> AuditLog {
+        if let l = opened[dir] { return l }
+        let l = try! AuditLog(path: dir + "/audit.sqlite")
+        opened[dir] = l
+        return l
+    }
+
     public static func digest(prev: String, at: Double, kind: String, data: String) -> String {
         let text = "\(prev)|\(String(format: "%.6f", at))|\(kind)|\(data)"
         return SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()

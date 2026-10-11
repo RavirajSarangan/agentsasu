@@ -12,16 +12,165 @@ public final class CoreServer {
 
     let token: String
     let audit: AuditLog
+    public var executor: Executor!
+    let journal: UndoJournal
+    private var current: Task<Void, Never>?
+    private let pendingLock = NSLock()
+    private var pending: [String: (kind: String, cont: CheckedContinuation<Bool, Never>)] = [:]
     let origins: Set<String>
     let queue = DispatchQueue(label: "sasu.core.server")
     private var listener: NWListener?
     private var clients: [ObjectIdentifier: Client] = [:]
     public private(set) var locks: Set<String> = []
 
-    public init(token: String, audit: AuditLog, dev: Bool) {
+    public init(token: String, audit: AuditLog, dev: Bool, dataDir: String, runner: Runner = ProcessRunner()) throws {
         self.token = token
         self.audit = audit
         self.origins = dev ? Self.appOrigins.union(Self.devOrigins) : Self.appOrigins
+        journal = try UndoJournal(path: dataDir + "/undo.sqlite")
+        let canaries = Canaries(stateFile: dataDir + "/canaries.json")
+        executor = Executor(
+            emit: { [weak self] e in self?.emit(e) },
+            approve: { [weak self] prompt, risk, lang, confirmed in await self?.approve(prompt, risk, lang, confirmed) ?? false },
+            audit: audit, journal: journal, holding: dataDir + "/bin", runner: runner, canaries: canaries,
+            onAlarm: { [weak self] kind, _ in if kind == "canary" { self?.control(["type": "lock", "reason": "canary"]) } }
+        )
+    }
+
+    func emit(_ event: [String: Any?]) {
+        let text = PyJSON.compact(event)
+        queue.async { [self] in broadcast(text) }
+    }
+
+    // MARK: approvals — owner "yes", then Touch ID for dangerous steps
+
+    private func wait(_ id: String, _ kind: String, timeout: Double) async -> Bool {
+        await withCheckedContinuation { cont in
+            pendingLock.withLock { pending[id] = (kind, cont) }
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { [weak self] in self?.resolve(id, kind, false) }
+        }
+    }
+
+    @discardableResult
+    func resolve(_ id: String, _ kind: String, _ ok: Bool) -> Bool {
+        let p = pendingLock.withLock { () -> (kind: String, cont: CheckedContinuation<Bool, Never>)? in
+            guard let p = pending[id], p.kind == kind else { return nil }
+            pending[id] = nil
+            return p
+        }
+        p?.cont.resume(returning: ok)
+        return p != nil
+    }
+
+    func denyAll() {
+        let all = pendingLock.withLock { () -> [CheckedContinuation<Bool, Never>] in
+            defer { pending.removeAll() }
+            return pending.values.map(\.cont)
+        }
+        all.forEach { $0.resume(returning: false) }
+    }
+
+    func approve(_ prompt: String, _ risk: Decision, _ lang: String, _ confirmed: Bool) async -> Bool {
+        if risk == .safe { return true }
+        if !confirmed {
+            let cid = Turn.newID()
+            emit(["type": "confirm_request", "id": cid, "prompt": prompt, "lang": lang, "risk": Executor.risk(risk)])
+            let ok = await wait(cid, "confirm", timeout: 30)
+            audit.append("approval", ["id": cid, "step": "confirm", "risk": risk.rawValue, "prompt": prompt, "ok": ok])
+            if !ok { return false }
+        }
+        if risk != .dangerous { return true }
+        let aid = Turn.newID()
+        emit(["type": "auth_required", "id": aid, "reason": prompt, "risk": Executor.risk(risk)])
+        let ok = await wait(aid, "auth", timeout: 60)
+        audit.append("approval", ["id": aid, "step": "touch_id", "risk": risk.rawValue, "prompt": prompt, "ok": ok])
+        return ok
+    }
+
+    // MARK: turns
+
+    static let undoPattern = #"^(?:hey\s+)?(?:sasu[,\s]*)?(?:undo(?: that| it)?|cancel that|திருப்பி\s*மாத்து|thiruppi\s*maathu)[.!]?$"#
+
+    private var activeTurn: Int = 0  // generation number of the running turn, 0 = none
+    private var generation = 0
+
+    func start(_ work: @escaping () async -> Void) {
+        stopTurn()
+        generation += 1
+        let gen = generation
+        pendingLock.withLock { activeTurn = gen }
+        current = Task { [weak self] in
+            await work()
+            self?.pendingLock.withLock { if self?.activeTurn == gen { self?.activeTurn = 0 } }
+        }
+    }
+
+    /// Stops the running turn. Returns false if nothing was running (like Python's `_stop`).
+    @discardableResult
+    func stopTurn() -> Bool {
+        denyAll()
+        let running = pendingLock.withLock { () -> Bool in
+            defer { activeTurn = 0 }
+            return activeTurn != 0
+        }
+        current?.cancel()
+        current = nil
+        return running
+    }
+
+    func speak(_ text: String, _ lang: String) async {
+        let words = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+        emit(["type": "say_start", "text": words.first ?? "", "lang": lang])
+        for w in words.dropFirst() {
+            try? await Task.sleep(nanoseconds: 30_000_000)
+            emit(["type": "say_chunk", "text": " " + w])
+        }
+        emit(["type": "say_end"])
+    }
+
+    func textTurn(_ raw: String) async {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lang = detectLang(text)
+        if FastPath.match(Self.undoPattern, text) != nil { return await undoTurn(nil) }
+        guard let fast = FastPath.parse(text) else {
+            emit(["type": "transcript", "text": text, "lang": lang])
+            emit(["type": "error", "code": "not_implemented", "message": "The Swift core can't answer that yet."])
+            emit(["type": "turn_done", "ok": false])
+            return
+        }
+        let turn = Turn(lang: lang)
+        audit.append("command", ["source": "owner", "text": text, "turn": turn.id, "fast": fast.kind])
+        emit(["type": "transcript", "text": text, "lang": lang])
+        var ok = true
+        var content = ""
+        for (name, args) in fast.calls {
+            let r = await executor.call(name, args, turn)
+            ok = ok && r.hasPrefix("OK")
+            content += r
+        }
+        let reply = !ok ? (lang != "ta" ? "That didn't work." : "அது சரியா வேலை செய்யல.")
+            : fast.kind == "battery" ? batteryReply(content, lang)
+            : (lang == "ta" ? fast.sayTa : fast.sayEn)
+        await speak(reply, lang)
+        let actions = journal.pending(turn: turn.id)
+        if !actions.isEmpty {
+            emit(["type": "undo_available", "turn_id": turn.id, "actions": actions.map { Tools.describe(kind: $0.kind, data: $0.data) }])
+        }
+        emit(["type": "turn_done", "ok": ok])
+    }
+
+    func undoTurn(_ id: String?) async {
+        guard let tid = id ?? journal.lastTurn() else {
+            await speak("There's nothing to undo.", "en")
+            emit(["type": "turn_done", "ok": true])
+            return
+        }
+        let (ok, items) = await executor.undo(turn: tid)
+        let summary = items.isEmpty ? "nothing to undo" : items.joined(separator: "; ")
+        audit.append("undo", ["turn": tid, "ok": ok, "summary": summary])
+        emit(["type": "undone", "turn_id": tid, "ok": ok, "summary": summary])
+        await speak(ok ? "Undone: \(summary)." : "Partly undone: \(summary).", "en")
+        emit(["type": "turn_done", "ok": ok])
     }
 
     /// Starts listening on 127.0.0.1 and returns the port.
@@ -57,6 +206,10 @@ public final class CoreServer {
             switch msg["type"] as? String {
             case "lock":
                 if let r = msg["reason"] as? String {
+                    if stopTurn() {
+                        broadcast(#"{"type":"error","code":"locked","message":"Sasu is locked"}"#)
+                        broadcast(#"{"type":"turn_done","ok":false}"#)
+                    }
                     locks.insert(r)
                     audit.append("lock", ["reason": r])
                     broadcast(PyJSON.compact(["type": "locked", "reasons": locks.sorted()]))
@@ -69,8 +222,14 @@ public final class CoreServer {
             case "secret":
                 // Keys are held in memory only and never logged; phase 1 only notes presence.
                 audit.append("key", ["provider": msg["provider"] as? String ?? "", "present": !((msg["key"] as? String) ?? "").isEmpty])
+            case "auth_result":
+                if let id = msg["id"] as? String { resolve(id, "auth", (msg["ok"] as? Bool) ?? false) }
             case "cancel":
                 audit.append("cancel", ["source": "kill_switch"])
+                if stopTurn() {
+                    broadcast(#"{"type":"error","code":"cancelled","message":"Stopped"}"#)
+                    broadcast(#"{"type":"turn_done","ok":false}"#)
+                }
             default:
                 break
             }
@@ -139,8 +298,30 @@ public final class CoreServer {
         guard let obj = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any], let type = obj["type"] as? String else {
             return client.send(WebSocket.text(#"{"type":"error","code":"bad_command","message":"Expected a JSON object with a type"}"#))
         }
-        // Phase 1: transport only. Commands are handled by the Python core until ported.
-        client.send(WebSocket.text(PyJSON.compact(["type": "error", "code": "not_implemented", "message": "The Swift core can't do \"\(type)\" yet"])))
+        if ["text_command", "undo"].contains(type), !locks.isEmpty {
+            audit.append("rejected", ["reason": "locked", "command": type])
+            return client.send(WebSocket.text(#"{"type":"error","code":"locked","message":"Sasu is locked"}"#))
+        }
+        switch type {
+        case "text_command":
+            let text = obj["text"] as? String ?? ""
+            start { [weak self] in await self?.textTurn(text) }
+        case "undo":
+            let id = obj["turn_id"] as? String
+            start { [weak self] in await self?.undoTurn(id) }
+        case "confirm_response":
+            resolve(obj["id"] as? String ?? "", "confirm", obj["approved"] as? Bool ?? false)
+        case "cancel":
+            audit.append("cancel", ["source": "ui"])
+            if stopTurn() {
+                broadcast(#"{"type":"error","code":"cancelled","message":"Stopped"}"#)
+                broadcast(#"{"type":"turn_done","ok":false}"#)
+            }
+        case "lock":
+            control(["type": "lock", "reason": "user"])
+        default:
+            client.send(WebSocket.text(PyJSON.compact(["type": "error", "code": "not_implemented", "message": "The Swift core can't do \"\(type)\" yet"])))
+        }
     }
 }
 

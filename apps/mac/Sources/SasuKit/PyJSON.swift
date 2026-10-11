@@ -17,12 +17,21 @@ public enum PyJSON {
             return quote(s)
         case let a as [Any?]:
             return "[" + a.map(dumps).joined(separator: ", ") + "]"
+        case let a as [Any]:
+            return "[" + a.map { dumps($0) }.joined(separator: ", ") + "]"
         case let o as [String: Any?]:
-            let keys = o.keys.sorted { Array($0.unicodeScalars.map(\.value)).lexicographicallyPrecedes(Array($1.unicodeScalars.map(\.value))) }
-            return "{" + keys.map { quote($0) + ": " + dumps(o[$0] ?? nil) }.joined(separator: ", ") + "}"
+            return object(o.keys, { o[$0] ?? nil })
+        case let o as [String: Any]:
+            return object(o.keys, { o[$0] })
         default:
             return quote(String(describing: value!))
         }
+    }
+
+    /// Keys sorted by code point, like Python's sort_keys.
+    static func object<K: Collection>(_ keys: K, _ value: (String) -> Any?) -> String where K.Element == String {
+        let sorted = keys.sorted { Array($0.unicodeScalars.map(\.value)).lexicographicallyPrecedes(Array($1.unicodeScalars.map(\.value))) }
+        return "{" + sorted.map { quote($0) + ": " + dumps(value($0)) }.joined(separator: ", ") + "}"
     }
 
     public static func quote(_ s: String) -> String {

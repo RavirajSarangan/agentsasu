@@ -28,7 +28,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: npx tsc --noEmit
+      - run: npx vite build && npx tsc --noEmit # the build generates routeTree.gen.ts
         working-directory: apps/desktop
       - run: npx vitest run
         working-directory: apps/desktop

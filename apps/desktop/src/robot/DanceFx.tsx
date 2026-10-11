@@ -47,7 +47,7 @@ export function NowPlaying({ song }: { song: string | null }) {
           initial={{ opacity: 0, y: 6, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 6 }}
-          className="glass flex max-w-[230px] items-center gap-1.5 rounded-full py-1 pl-2 pr-3 text-[11px] font-semibold"
+          className="glass flex max-w-[200px] items-center gap-1.5 rounded-full py-1 pl-2 pr-3 text-[11px] font-semibold"
         >
           <motion.span animate={{ rotate: [0, -12, 12, 0] }} transition={{ duration: 0.8, repeat: Infinity }} className="text-[#ff5fa2]">
             <Music2 size={12} />

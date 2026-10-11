@@ -182,7 +182,7 @@ function Overlay() {
   const moodText = mood === "pet" ? "Hehe 💙" : mood === "dizzy" ? "Ayyo! Ellaam suthudhu…" : mood === "break" ? "Break time: konjam thanni kudinga, stretch pannunga 🙆" : null;
 
   return (
-    <main className="flex h-full flex-col items-center justify-end gap-2.5 pb-5">
+    <main className="flex h-full flex-col items-center justify-end gap-2.5 overflow-visible pb-5" onWheel={(e) => e.preventDefault()}>
       {moodText && !busy ? (
         <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="glass max-w-[224px] rounded-[16px] px-3.5 py-2 text-center text-[12.5px]">
           {moodText}
@@ -190,9 +190,12 @@ function Overlay() {
       ) : (
         <Bubble />
       )}
-      {dancing && !busy && <NowPlaying song={song} />}
-      <ModeChips focus={focusState} translating={translating} />
-      {festival && !busy && <span className="text-[18px]" aria-label="festival">{FESTIVE[festival] ?? "🎉"}</span>}
+      {/* One row of small chips, so they never push the robot out of the window. */}
+      <div className="flex max-w-[250px] flex-wrap items-center justify-center gap-1.5 empty:hidden">
+        {dancing && !busy && <NowPlaying song={song} />}
+        <ModeChips focus={focusState} translating={translating} />
+        {festival && !busy && <span className="text-[18px]" aria-label="festival">{FESTIVE[festival] ?? "🎉"}</span>}
+      </div>
 
       <AnimatePresence>
         {(busy || hover || !connected) && (

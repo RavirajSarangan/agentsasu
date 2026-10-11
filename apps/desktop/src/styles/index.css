@@ -112,6 +112,22 @@ html.overlay #root {
   -webkit-user-select: none;
 }
 
+/* The window itself must never scroll: glows and chips may reach past its edge, which
+   would otherwise make WebKit turn the whole transparent window into a scrolling box.
+   (This clips at the window edge only — nothing inside clips the robot.) */
+html.overlay {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+html.overlay body {
+  position: fixed;
+  inset: 0;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
 /* ── Effects ────────────────────────────────────────────────────────────── */
 .glass {
   background: var(--glass);

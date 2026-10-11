@@ -88,6 +88,8 @@
     },
     "resources": {
       "resources/sasu-core/": "sasu-core/"
-    }
+    },
+    "copyright": "\u00a9 2026 Sarangan Raviraj",
+    "publisher": "Sarangan Raviraj"
   }
 }

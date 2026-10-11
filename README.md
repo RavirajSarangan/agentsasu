@@ -209,4 +209,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT
 [MIT](LICENSE) · [Terms](TERMS.md) · Robot by [robot-heads](https://github.com/fayazara/robot-heads).
 Sasu is not affiliated with Apple, Google, Anthropic or Groq.
 
-<div align="center"><sub>Made with ❤️ for English and தமிழ் speakers.</sub></div>
+<div align="center"><sub>Developed by <a href="https://github.com/RavirajSarangan"><b>Sarangan Raviraj</b></a> · Made with ❤️ for English and தமிழ் speakers.</sub></div>

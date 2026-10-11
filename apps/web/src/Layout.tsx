@@ -134,7 +134,13 @@ export function Footer() {
             <p className="font-bold" style={{ fontFamily: "var(--font-display)" }}>
               Sasu
             </p>
-            <p className="text-sm text-[var(--muted)]">Free and open source under the MIT license.</p>
+            <p className="text-sm text-[var(--muted)]">
+              Developed by{" "}
+              <a href="https://github.com/RavirajSarangan" className="font-semibold text-[var(--text)] underline-offset-4 hover:underline">
+                Sarangan Raviraj
+              </a>
+              . Free and open source (MIT).
+            </p>
           </div>
         </div>
         <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--muted)]">

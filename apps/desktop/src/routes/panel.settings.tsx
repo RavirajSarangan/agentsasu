@@ -187,6 +187,9 @@ function SettingsPage() {
           </Button>
         </Row>
       </Group>
+      <p className="pb-2 text-center text-[11.5px] text-[var(--muted)]">
+        Sasu 0.4.0 · Developed by <span className="font-semibold text-[var(--text)]">Sarangan Raviraj</span> · MIT License
+      </p>
     </div>
   );
 }

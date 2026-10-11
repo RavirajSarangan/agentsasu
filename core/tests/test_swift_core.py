@@ -872,3 +872,189 @@ def test_vad_and_voiceprints_match_python(swift_bin: Path, clips: list[Path]) ->
         s.accept_waveform(sample_rate=16000, waveform=load_wav(c))
         s.input_finished()
         assert cosine(list(ex.compute(s)), e) > 0.999, c.name
+
+
+# ── phase 3b-1: the listening state machine and the vault must match Python ──
+
+EXTRA_CLIPS = [("Rishi", "Stop!"), ("Tara", "Hey Sasu, what's the time?")]
+
+
+@pytest.fixture(scope="module")
+def more_clips(clips: list[Path]) -> list[Path]:
+    d = clips[0].parent
+    out = []
+    for i, (voice, text) in enumerate(EXTRA_CLIPS):
+        aiff, wav = d / f"x{i}.aiff", d / f"x{i}.wav"
+        subprocess.run(["say", "-v", voice, "-o", str(aiff), text], check=True)
+        subprocess.run(
+            ["afconvert", "-f", "WAVE", "-d", "LEI16@16000", "-c", "1", str(aiff), str(wav)],
+            check=True,
+        )
+        out.append(wav)
+    return out
+
+
+def session(clips: list[Path], more: list[Path]) -> list[dict[str, Any]]:
+    c, x = [str(p) for p in clips], [str(p) for p in more]
+    return [
+        {"wav": c[0]},  # "Hey Sasu, open Safari and …" in one breath
+        {"wav": c[1]},  # "Hey Sasu." → listening
+        {"wav": c[2]},  # "Play some music." → command
+        {"wav": c[3]},  # "சாசு, பாட்டு போடு." → Tamil
+        {"wav": c[4]},  # "சத்தம் குறை." without the wake word → ignored
+        {"speaking": True},
+        {"wav": x[0]},  # "Stop!" while Sasu talks
+        {"wav": c[2]},  # anything else while talking → ignored
+        {"follow_up": True},
+        {"speaking": False},  # reply finished → listens for a follow-up
+        {"wav": c[2]},  # follow-up without the wake word
+        {"mode": "meeting"},
+        {"wav": c[5]},  # meeting caption
+        {"mode": "idle"},
+        {"wav": x[1]},  # Tara: "Hey Sasu, what's the time?"
+    ]
+
+
+@needs_models
+def test_listening_session_matches_python(
+    swift_bin: Path, clips: list[Path], more_clips: list[Path]
+) -> None:
+    import numpy as np
+
+    from sasu_core.voice.pipeline import Callbacks, VoicePipeline
+
+    steps = session(clips, more_clips)
+
+    class Rec(Callbacks):
+        def __init__(self) -> None:
+            self.log: list[dict[str, Any]] = []
+
+        async def on_wake(self, command_follows: bool) -> None:
+            self.log.append({"event": "wake", "follows": command_follows})
+
+        async def on_command(self, heard: Any) -> None:
+            self.log.append(
+                {
+                    "event": "command",
+                    "text": heard.text,
+                    "lang": heard.lang,
+                    "voiceprint": heard.embedding is not None,
+                }
+            )
+
+        async def on_stop(self) -> None:
+            self.log.append({"event": "stop"})
+
+        async def on_caption(self, text: str, lang: str) -> None:
+            self.log.append({"event": "caption", "text": text, "lang": lang})
+
+    async def run_python() -> list[dict[str, Any]]:
+        rec = Rec()
+        p = VoicePipeline(MODELS, rec, asyncio.get_running_loop())
+        for step in steps:
+            if "mode" in step:
+                p.mode = step["mode"]
+            if "speaking" in step:
+                p.set_speaking(step["speaking"])
+            if "follow_up" in step:
+                p.follow_up = step["follow_up"]
+            if "wav" in step:
+                p.vad.reset()
+                x = np.concatenate(
+                    [
+                        np.zeros(9600, np.float32),
+                        load_wav(Path(step["wav"])),
+                        np.zeros(32000, np.float32),
+                    ]
+                )
+                for i in range(0, len(x) - 511, 512):
+                    p.vad.accept_waveform(x[i : i + 512])
+                    while not p.vad.empty():
+                        seg = np.array(p.vad.front.samples, dtype=np.float32)
+                        p.vad.pop()
+                        await p._segment(seg)
+            rec.log.append({"mode": p.mode})
+        return rec.log
+
+    py = asyncio.run(run_python())
+    sw = swift_eval(swift_bin, [{"fn": "listen", "models": str(MODELS), "steps": steps}])[0]["log"]
+    events = [e for e in py if "event" in e]
+    assert {"event": "stop"} in events and any(
+        e.get("event") == "caption" for e in events
+    )  # the script exercised every mode
+    assert sw == py
+    commands = [(e["text"], e["lang"]) for e in events if e.get("event") == "command"]
+    assert ("Play some music.", "en") in commands[2:]  # the follow-up isn't forced into Tamil
+    assert any(
+        "time" in t.lower() for t, _ in commands
+    )  # Tara's "Hey Sasu, what's the time?" is heard
+
+
+@needs_models
+def test_python_enrolled_voices_are_recognised_by_swift(
+    swift_bin: Path, clips: list[Path], more_clips: list[Path], tmp_path: Path
+) -> None:
+    import sherpa_onnx as so
+
+    from sasu_core.security.voiceprint import Profile, Voiceprint, VoiceprintVault, identify
+
+    ex = so.SpeakerEmbeddingExtractor(
+        so.SpeakerEmbeddingExtractorConfig(
+            model=str(MODELS / "wespeaker_en_voxceleb_resnet34.onnx"), num_threads=2
+        )
+    )
+
+    def emb(p: Path) -> list[float]:
+        s = ex.create_stream()
+        s.accept_waveform(sample_rate=16000, waveform=load_wav(p))
+        s.input_finished()
+        return list(ex.compute(s))
+
+    key = "cd" * 32
+    vault = VoiceprintVault(tmp_path / "voiceprint.bin", key)
+    rishi = [clips[0], clips[1], clips[5]]  # Rishi's voice
+    vault.upsert(Profile("Raviraj", "owner", Voiceprint.enroll([emb(p) for p in rishi])))
+    vault.upsert(
+        Profile(
+            "Kutty", "kid", Voiceprint.enroll([emb(clips[2]), emb(more_clips[1]), emb(clips[2])])
+        )
+    )  # Tara
+    probes = [
+        clips[0],
+        more_clips[0],
+        clips[2],
+        more_clips[1],
+        clips[3],
+    ]  # Rishi, Rishi, Tara, Tara, Vani
+    sw = swift_eval(
+        swift_bin,
+        [
+            {
+                "fn": "identify",
+                "vault": str(vault.path),
+                "key": key,
+                "wav": str(p),
+                "models": str(MODELS),
+            }
+            for p in probes
+        ],
+    )
+    profiles = vault.load_profiles()
+    for p, got in zip(probes, sw, strict=True):
+        who, score = identify(profiles, emb(p))
+        assert (got["name"], got["role"]) == ((who.name, who.role) if who else (None, None)), p.name
+        assert abs(got["score"] - round(score, 4)) < 1e-3, p.name
+    # wrong key → refused, not a crash
+    bad = swift_eval(
+        swift_bin,
+        [
+            {
+                "fn": "identify",
+                "vault": str(vault.path),
+                "key": "ef" * 32,
+                "wav": str(probes[0]),
+                "models": str(MODELS),
+            }
+        ],
+    )[0]
+    assert bad is None

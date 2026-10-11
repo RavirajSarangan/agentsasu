@@ -73,6 +73,48 @@ if args.contains("--eval") {
                 VoiceEval.embedder = VoiceEval.embedder ?? SpeakerEmbedder(modelsDir: dir)
                 print(VoiceEval.embedder?.embed(wav).map { PyJSON.dumps($0.map { Double($0) }) } ?? "null")
             }
+        case "listen":
+            // A scripted session: clips are cut into speech segments by the VAD and fed in
+            // order; other steps change the mode, like the real app would.
+            let dir = q["models"] as? String ?? ""
+            guard let listener = VoiceEval.listener(dir), let vad = VAD(modelsDir: dir) else { print("null"); continue }
+            let rec = EvalRecorder()
+            listener.delegate = rec
+            listener.mode = .idle
+            listener.nextLang = nil
+            listener.followUp = false
+            listener.wakeNames = q["names"] as? [String] ?? []
+            let steps = q["steps"] as? [[String: Any]] ?? []
+            let done = DispatchSemaphore(value: 0)
+            Task {
+                for step in steps {
+                    if let m = step["mode"] as? String, let mode = Listener.Mode(rawValue: m) { listener.mode = mode }
+                    if let sp = step["speaking"] as? Bool { listener.setSpeaking(sp) }
+                    if let f = step["follow_up"] as? Bool { listener.followUp = f }
+                    if let w = step["wav"] as? String, let audio = readWav(w) {
+                        vad.reset()
+                        let x = [Float](repeating: 0, count: 9600) + audio + [Float](repeating: 0, count: 32000)
+                        var i = 0
+                        while i + vad.window <= x.count {
+                            vad.accept(Array(x[i..<(i + vad.window)]))
+                            for seg in vad.popSegments() { await listener.handle(seg) }
+                            i += vad.window
+                        }
+                    }
+                    rec.withLock { rec.log.append(["mode": listener.mode.rawValue]) }
+                }
+                done.signal()
+            }
+            done.wait()
+            print(PyJSON.compact(["log": rec.log]))
+        case "identify":
+            let dir = q["models"] as? String ?? ""
+            guard let vault = VoiceprintVault(path: q["vault"] as? String ?? "", keyHex: q["key"] as? String ?? ""),
+                  let profiles = try? vault.loadProfiles() else { print("null"); continue }
+            VoiceEval.embedder = VoiceEval.embedder ?? SpeakerEmbedder(modelsDir: dir)
+            guard let wav = readWav(q["wav"] as? String ?? ""), let e = VoiceEval.embedder?.embed(wav) else { print("null"); continue }
+            let (who, score) = identify(profiles, e)
+            print(PyJSON.compact(["name": who?.name, "role": who?.role, "score": score]))
         case "call", "undo":
             // One executor call (or an undo) in a sandbox data dir, with a scripted yes/no.
             let dir = q["data_dir"] as? String ?? NSTemporaryDirectory()
@@ -155,4 +197,23 @@ final class EvalBox: NSLock, @unchecked Sendable {
 enum VoiceEval {
     nonisolated(unsafe) static var recognizers: [String: Recognizer?] = [:]
     nonisolated(unsafe) static var embedder: SpeakerEmbedder?
+    nonisolated(unsafe) static var listeners: [String: Listener] = [:]
+
+    static func listener(_ dir: String) -> Listener? {
+        if let l = listeners[dir] { return l }
+        let l = Listener(modelsDir: dir)
+        listeners[dir] = l
+        return l
+    }
+}
+
+/// Records what the listener reports, for the parity tests.
+final class EvalRecorder: NSLock, ListenerDelegate, @unchecked Sendable {
+    var log: [[String: Any?]] = []
+    func add(_ e: [String: Any?]) { withLock { log.append(e) } }
+    func onWake(commandFollows: Bool) async { add(["event": "wake", "follows": commandFollows]) }
+    func onCommand(_ h: Heard) async { add(["event": "command", "text": h.text, "lang": h.lang, "voiceprint": h.embedding != nil]) }
+    func onStop() async { add(["event": "stop"]) }
+    func onCaption(_ text: String, lang: String) async { add(["event": "caption", "text": text, "lang": lang]) }
+    func onEnrollSample(_ embedding: [Float]) async { add(["event": "enroll"]) }
 }

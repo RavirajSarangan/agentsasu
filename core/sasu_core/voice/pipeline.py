@@ -331,8 +331,13 @@ class VoicePipeline:
                 quick = await run(None, self.decode_as, "tiny", "ta", samples)
                 heard, rest = find_wake(quick, self.wake_names)
                 qlang = "ta"
-                if not heard:
-                    return
+            if not heard and secs >= 1.0:
+                # tiny mishears some voices on segments this long ("Hey Sasu, what's the
+                # time?" → Japanese); one accurate pass before giving up.
+                quick, qlang = await run(None, self._decode, self.turbo, samples)
+                heard, rest = find_wake(quick, self.wake_names)
+            if not heard:
+                return
             if qlang == "ta" or any("\u0b80" <= c <= "\u0bff" for c in quick):
                 self.next_lang = "ta"
             text, lang = quick, "ta" if self.next_lang == "ta" else "en"
@@ -340,6 +345,7 @@ class VoicePipeline:
                 text, lang = await run(None, self._decode, self.turbo, samples)
                 _, rest = find_wake(text, self.wake_names)
         if len(rest.split()) >= 1:
+            self.next_lang = None  # the command came in the same breath; don't force the next one
             emb = await run(None, self._embed, samples)
             await self.cb.on_wake(command_follows=True)
             await self.cb.on_command(Heard(rest, lang, emb, secs))

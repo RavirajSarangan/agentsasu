@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-privacy-pane"
+description = "Enables the open_privacy_pane command without any pre-configured scope."
+commands.allow = ["open_privacy_pane"]
+
+[[permission]]
+identifier = "deny-open-privacy-pane"
+description = "Denies the open_privacy_pane command without any pre-configured scope."
+commands.deny = ["open_privacy_pane"]

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Sasu listens for “Hey Sasu” and your commands. Audio stays on this Mac.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Sasu controls apps like Safari, Music and Calendar when you ask it to.</string>
+  <key>NSFaceIDUsageDescription</key>
+  <string>Sasu asks for Touch ID before risky actions like deleting files.</string>
+</dict>
+</plist>

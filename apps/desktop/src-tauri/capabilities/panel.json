@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "panel",
+  "description": "Settings, setup assistant and security page.",
+  "windows": [
+    "panel"
+  ],
+  "permissions": [
+    "core:default",
+    "autostart:default",
+    "allow-core-endpoint",
+    "allow-show-panel",
+    "allow-permissions-status",
+    "allow-request-permission",
+    "allow-open-privacy-pane",
+    "allow-auth-available",
+    "allow-authorize-action",
+    "allow-test-touch-id",
+    "allow-shell-security",
+    "allow-set-disabled",
+    "allow-haptic",
+    "allow-api-keys",
+    "allow-set-api-key",
+    "allow-remove-api-key",
+    "allow-open-help"
+  ]
+}

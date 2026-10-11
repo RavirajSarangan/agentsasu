@@ -1,0 +1,8 @@
+{
+  "name": "@sasu/brand",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Sasu themes and sound kit, shared by the desktop app and the website",
+  "exports": { ".": "./src/index.ts" }
+}

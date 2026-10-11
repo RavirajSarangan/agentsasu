@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "overlay",
+  "description": "The floating robot: talk, move, Touch ID for pending actions. Nothing else.",
+  "windows": [
+    "overlay"
+  ],
+  "permissions": [
+    "core:event:default",
+    "core:window:allow-start-dragging",
+    "allow-core-endpoint",
+    "allow-show-panel",
+    "allow-authorize-action",
+    "allow-haptic",
+    "allow-fly-to-app",
+    "allow-fly-home"
+  ]
+}

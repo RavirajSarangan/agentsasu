@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-show-panel"
+description = "Enables the show_panel command without any pre-configured scope."
+commands.allow = ["show_panel"]
+
+[[permission]]
+identifier = "deny-show-panel"
+description = "Denies the show_panel command without any pre-configured scope."
+commands.deny = ["show_panel"]

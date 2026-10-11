@@ -1,0 +1,30 @@
+[package]
+name = "sasu"
+version = "0.1.0"
+description = "SASU — open-source voice desktop agent"
+license = "MIT"
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "sasu_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-autostart = "2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSString", "NSError", "NSNotification", "NSDistributedNotificationCenter", "NSOperation", "NSObject", "block2"] }
+objc2-av-foundation = { version = "0.3", features = ["AVCaptureDevice", "AVMediaFormat", "block2"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "NSHapticFeedback", "block2"] }
+objc2-local-authentication = { version = "0.3", features = ["LAContext", "LAError", "block2"] }

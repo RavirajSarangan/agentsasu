@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-authorize-action"
+description = "Enables the authorize_action command without any pre-configured scope."
+commands.allow = ["authorize_action"]
+
+[[permission]]
+identifier = "deny-authorize-action"
+description = "Denies the authorize_action command without any pre-configured scope."
+commands.deny = ["authorize_action"]

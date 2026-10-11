@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-auth-available"
+description = "Enables the auth_available command without any pre-configured scope."
+commands.allow = ["auth_available"]
+
+[[permission]]
+identifier = "deny-auth-available"
+description = "Denies the auth_available command without any pre-configured scope."
+commands.deny = ["auth_available"]

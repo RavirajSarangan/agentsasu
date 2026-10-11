@@ -1,0 +1,7 @@
+{
+  "name": "@sasu/protocol",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Generated JSON schema of the sasu-core WebSocket protocol (do not hand-edit schema.json)",
+  "exports": { "./schema.json": "./schema.json" }
+}

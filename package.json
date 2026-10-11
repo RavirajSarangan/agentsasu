@@ -1,0 +1,24 @@
+{
+  "name": "sasu",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SASU \u2014 open-source voice desktop agent for macOS",
+  "license": "MIT",
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @sasu/desktop tauri dev",
+    "dev:ui": "pnpm --filter @sasu/desktop dev",
+    "core": "uv run --project core python -m sasu_core",
+    "core:demo": "uv run --project core python -m sasu_core --demo --port 8765 --token dev --dev",
+    "protocol:gen": "uv run --project core python -m sasu_core.protocol > packages/protocol/schema.json",
+    "test": "pnpm --filter @sasu/desktop test && uv run --project core pytest -q core/tests",
+    "typecheck": "pnpm --filter @sasu/desktop typecheck && pnpm --filter @sasu/web typecheck",
+    "web": "pnpm --filter @sasu/web dev",
+    "web:build": "pnpm --filter @sasu/web build",
+    "build": "pnpm --filter @sasu/desktop tauri build",
+    "assets": "uv run --with playwright --with pillow python apps/web/scripts/render-assets.py"
+  }
+}

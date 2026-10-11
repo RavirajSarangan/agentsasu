@@ -1,0 +1,1097 @@
+{
+  "coreEvent": {
+    "$defs": {
+      "AuthRequired": {
+        "description": "A dangerous action needs Touch ID / password, handled by the desktop shell.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "safe",
+              "confirm",
+              "dangerous"
+            ],
+            "title": "Risk",
+            "type": "string"
+          },
+          "type": {
+            "const": "auth_required",
+            "default": "auth_required",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason",
+          "risk"
+        ],
+        "title": "AuthRequired",
+        "type": "object"
+      },
+      "BrainStatus": {
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keys",
+            "type": "array"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "brain_status",
+            "default": "brain_status",
+            "title": "Type",
+            "type": "string"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "ready",
+          "keys",
+          "voice"
+        ],
+        "title": "BrainStatus",
+        "type": "object"
+      },
+      "ConfirmRequest": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lang": {
+            "enum": [
+              "en",
+              "ta"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "safe",
+              "confirm",
+              "dangerous"
+            ],
+            "title": "Risk",
+            "type": "string"
+          },
+          "type": {
+            "const": "confirm_request",
+            "default": "confirm_request",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "prompt",
+          "lang",
+          "risk"
+        ],
+        "title": "ConfirmRequest",
+        "type": "object"
+      },
+      "EnrollProgress": {
+        "properties": {
+          "done": {
+            "default": false,
+            "title": "Done",
+            "type": "boolean"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "phrase": {
+            "title": "Phrase",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "type": {
+            "const": "enroll_progress",
+            "default": "enroll_progress",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "n",
+          "total",
+          "phrase"
+        ],
+        "title": "EnrollProgress",
+        "type": "object"
+      },
+      "ErrorEvent": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorEvent",
+        "type": "object"
+      },
+      "FocusApp": {
+        "description": "Sasu is working in this app (the robot flies next to it).",
+        "properties": {
+          "app": {
+            "title": "App",
+            "type": "string"
+          },
+          "type": {
+            "const": "focus_app",
+            "default": "focus_app",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "app"
+        ],
+        "title": "FocusApp",
+        "type": "object"
+      },
+      "Level": {
+        "description": "Mic input level 0\u20131, for meters.",
+        "properties": {
+          "rms": {
+            "title": "Rms",
+            "type": "number"
+          },
+          "type": {
+            "const": "level",
+            "default": "level",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rms"
+        ],
+        "title": "Level",
+        "type": "object"
+      },
+      "Listening": {
+        "properties": {
+          "type": {
+            "const": "listening",
+            "default": "listening",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Listening",
+        "type": "object"
+      },
+      "Locked": {
+        "properties": {
+          "reasons": {
+            "items": {
+              "enum": [
+                "screen",
+                "disabled",
+                "user"
+              ],
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "type": {
+            "const": "locked",
+            "default": "locked",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reasons"
+        ],
+        "title": "Locked",
+        "type": "object"
+      },
+      "PartialTranscript": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "partial_transcript",
+            "default": "partial_transcript",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PartialTranscript",
+        "type": "object"
+      },
+      "PlanPreview": {
+        "description": "What Sasu is about to do, shown before a multi-step or risky turn.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "type": {
+            "const": "plan_preview",
+            "default": "plan_preview",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "steps"
+        ],
+        "title": "PlanPreview",
+        "type": "object"
+      },
+      "Privacy": {
+        "description": "What left this Mac during the turn.",
+        "properties": {
+          "audio": {
+            "default": 0,
+            "title": "Audio",
+            "type": "integer"
+          },
+          "chars": {
+            "title": "Chars",
+            "type": "integer"
+          },
+          "images": {
+            "default": 0,
+            "title": "Images",
+            "type": "integer"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "type": {
+            "const": "privacy",
+            "default": "privacy",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "chars"
+        ],
+        "title": "Privacy",
+        "type": "object"
+      },
+      "Ready": {
+        "properties": {
+          "demo": {
+            "title": "Demo",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "ready",
+            "default": "ready",
+            "title": "Type",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "demo"
+        ],
+        "title": "Ready",
+        "type": "object"
+      },
+      "SayChunk": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "say_chunk",
+            "default": "say_chunk",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "SayChunk",
+        "type": "object"
+      },
+      "SayEnd": {
+        "properties": {
+          "type": {
+            "const": "say_end",
+            "default": "say_end",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "SayEnd",
+        "type": "object"
+      },
+      "SayStart": {
+        "properties": {
+          "lang": {
+            "enum": [
+              "en",
+              "ta"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "say_start",
+            "default": "say_start",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "lang"
+        ],
+        "title": "SayStart",
+        "type": "object"
+      },
+      "Sleep": {
+        "properties": {
+          "type": {
+            "const": "sleep",
+            "default": "sleep",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Sleep",
+        "type": "object"
+      },
+      "SpeakerRejected": {
+        "description": "Someone who is not the enrolled owner spoke. Nothing was run.",
+        "properties": {
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "type": {
+            "const": "speaker_rejected",
+            "default": "speaker_rejected",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "score"
+        ],
+        "title": "SpeakerRejected",
+        "type": "object"
+      },
+      "Thinking": {
+        "properties": {
+          "type": {
+            "const": "thinking",
+            "default": "thinking",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Thinking",
+        "type": "object"
+      },
+      "ToolEnd": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          },
+          "type": {
+            "const": "tool_end",
+            "default": "tool_end",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ok"
+        ],
+        "title": "ToolEnd",
+        "type": "object"
+      },
+      "ToolStart": {
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "risk": {
+            "default": "safe",
+            "enum": [
+              "safe",
+              "confirm",
+              "dangerous"
+            ],
+            "title": "Risk",
+            "type": "string"
+          },
+          "type": {
+            "const": "tool_start",
+            "default": "tool_start",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "ToolStart",
+        "type": "object"
+      },
+      "Transcript": {
+        "properties": {
+          "lang": {
+            "enum": [
+              "en",
+              "ta"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "transcript",
+            "default": "transcript",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "lang"
+        ],
+        "title": "Transcript",
+        "type": "object"
+      },
+      "TurnDone": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "turn_done",
+            "default": "turn_done",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "TurnDone",
+        "type": "object"
+      },
+      "UndoAvailable": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "turn_id": {
+            "title": "Turn Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "undo_available",
+            "default": "undo_available",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "turn_id",
+          "actions"
+        ],
+        "title": "UndoAvailable",
+        "type": "object"
+      },
+      "Undone": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "turn_id": {
+            "title": "Turn Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "undone",
+            "default": "undone",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "turn_id",
+          "ok",
+          "summary"
+        ],
+        "title": "Undone",
+        "type": "object"
+      },
+      "Unlocked": {
+        "properties": {
+          "type": {
+            "const": "unlocked",
+            "default": "unlocked",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Unlocked",
+        "type": "object"
+      },
+      "VoiceStatus": {
+        "description": "On-device voice: models missing / downloading / ready / listening / error.",
+        "properties": {
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "enrolled": {
+            "default": false,
+            "title": "Enrolled",
+            "type": "boolean"
+          },
+          "progress": {
+            "default": 0.0,
+            "title": "Progress",
+            "type": "number"
+          },
+          "size_mb": {
+            "default": 0,
+            "title": "Size Mb",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "missing",
+              "downloading",
+              "loading",
+              "listening",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "type": {
+            "const": "voice_status",
+            "default": "voice_status",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "VoiceStatus",
+        "type": "object"
+      },
+      "Wake": {
+        "properties": {
+          "source": {
+            "enum": [
+              "wakeword",
+              "hotkey",
+              "click",
+              "demo"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "type": {
+            "const": "wake",
+            "default": "wake",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "Wake",
+        "type": "object"
+      }
+    },
+    "discriminator": {
+      "mapping": {
+        "auth_required": "#/$defs/AuthRequired",
+        "brain_status": "#/$defs/BrainStatus",
+        "confirm_request": "#/$defs/ConfirmRequest",
+        "enroll_progress": "#/$defs/EnrollProgress",
+        "error": "#/$defs/ErrorEvent",
+        "focus_app": "#/$defs/FocusApp",
+        "level": "#/$defs/Level",
+        "listening": "#/$defs/Listening",
+        "locked": "#/$defs/Locked",
+        "partial_transcript": "#/$defs/PartialTranscript",
+        "plan_preview": "#/$defs/PlanPreview",
+        "privacy": "#/$defs/Privacy",
+        "ready": "#/$defs/Ready",
+        "say_chunk": "#/$defs/SayChunk",
+        "say_end": "#/$defs/SayEnd",
+        "say_start": "#/$defs/SayStart",
+        "sleep": "#/$defs/Sleep",
+        "speaker_rejected": "#/$defs/SpeakerRejected",
+        "thinking": "#/$defs/Thinking",
+        "tool_end": "#/$defs/ToolEnd",
+        "tool_start": "#/$defs/ToolStart",
+        "transcript": "#/$defs/Transcript",
+        "turn_done": "#/$defs/TurnDone",
+        "undo_available": "#/$defs/UndoAvailable",
+        "undone": "#/$defs/Undone",
+        "unlocked": "#/$defs/Unlocked",
+        "voice_status": "#/$defs/VoiceStatus",
+        "wake": "#/$defs/Wake"
+      },
+      "propertyName": "type"
+    },
+    "oneOf": [
+      {
+        "$ref": "#/$defs/Ready"
+      },
+      {
+        "$ref": "#/$defs/Wake"
+      },
+      {
+        "$ref": "#/$defs/Listening"
+      },
+      {
+        "$ref": "#/$defs/PartialTranscript"
+      },
+      {
+        "$ref": "#/$defs/Transcript"
+      },
+      {
+        "$ref": "#/$defs/Thinking"
+      },
+      {
+        "$ref": "#/$defs/ToolStart"
+      },
+      {
+        "$ref": "#/$defs/ToolEnd"
+      },
+      {
+        "$ref": "#/$defs/ConfirmRequest"
+      },
+      {
+        "$ref": "#/$defs/SayStart"
+      },
+      {
+        "$ref": "#/$defs/SayChunk"
+      },
+      {
+        "$ref": "#/$defs/SayEnd"
+      },
+      {
+        "$ref": "#/$defs/TurnDone"
+      },
+      {
+        "$ref": "#/$defs/ErrorEvent"
+      },
+      {
+        "$ref": "#/$defs/Sleep"
+      },
+      {
+        "$ref": "#/$defs/SpeakerRejected"
+      },
+      {
+        "$ref": "#/$defs/Locked"
+      },
+      {
+        "$ref": "#/$defs/Unlocked"
+      },
+      {
+        "$ref": "#/$defs/AuthRequired"
+      },
+      {
+        "$ref": "#/$defs/PlanPreview"
+      },
+      {
+        "$ref": "#/$defs/FocusApp"
+      },
+      {
+        "$ref": "#/$defs/UndoAvailable"
+      },
+      {
+        "$ref": "#/$defs/Undone"
+      },
+      {
+        "$ref": "#/$defs/Privacy"
+      },
+      {
+        "$ref": "#/$defs/Level"
+      },
+      {
+        "$ref": "#/$defs/EnrollProgress"
+      },
+      {
+        "$ref": "#/$defs/BrainStatus"
+      },
+      {
+        "$ref": "#/$defs/VoiceStatus"
+      }
+    ]
+  },
+  "uiCommand": {
+    "$defs": {
+      "Cancel": {
+        "properties": {
+          "type": {
+            "const": "cancel",
+            "default": "cancel",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Cancel",
+        "type": "object"
+      },
+      "ConfirmResponse": {
+        "properties": {
+          "approved": {
+            "title": "Approved",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "confirm_response",
+            "default": "confirm_response",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "approved"
+        ],
+        "title": "ConfirmResponse",
+        "type": "object"
+      },
+      "EnrollCancel": {
+        "properties": {
+          "type": {
+            "const": "enroll_cancel",
+            "default": "enroll_cancel",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "EnrollCancel",
+        "type": "object"
+      },
+      "EnrollStart": {
+        "properties": {
+          "type": {
+            "const": "enroll_start",
+            "default": "enroll_start",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "EnrollStart",
+        "type": "object"
+      },
+      "Lock": {
+        "description": "Any window may lock Sasu. Only the desktop shell (stdin) can unlock it.",
+        "properties": {
+          "type": {
+            "const": "lock",
+            "default": "lock",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Lock",
+        "type": "object"
+      },
+      "PttStart": {
+        "properties": {
+          "type": {
+            "const": "ptt_start",
+            "default": "ptt_start",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "PttStart",
+        "type": "object"
+      },
+      "PttStop": {
+        "properties": {
+          "type": {
+            "const": "ptt_stop",
+            "default": "ptt_stop",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "PttStop",
+        "type": "object"
+      },
+      "SetSettings": {
+        "properties": {
+          "settings": {
+            "additionalProperties": true,
+            "title": "Settings",
+            "type": "object"
+          },
+          "type": {
+            "const": "set_settings",
+            "default": "set_settings",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "settings"
+        ],
+        "title": "SetSettings",
+        "type": "object"
+      },
+      "SkillRun": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "const": "skill_run",
+            "default": "skill_run",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SkillRun",
+        "type": "object"
+      },
+      "TextCommand": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "text_command",
+            "default": "text_command",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextCommand",
+        "type": "object"
+      },
+      "Undo": {
+        "properties": {
+          "turn_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Turn Id"
+          },
+          "type": {
+            "const": "undo",
+            "default": "undo",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Undo",
+        "type": "object"
+      },
+      "VoiceSetup": {
+        "description": "Download the on-device voice models (one time) and start listening.",
+        "properties": {
+          "type": {
+            "const": "voice_setup",
+            "default": "voice_setup",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "VoiceSetup",
+        "type": "object"
+      }
+    },
+    "discriminator": {
+      "mapping": {
+        "cancel": "#/$defs/Cancel",
+        "confirm_response": "#/$defs/ConfirmResponse",
+        "enroll_cancel": "#/$defs/EnrollCancel",
+        "enroll_start": "#/$defs/EnrollStart",
+        "lock": "#/$defs/Lock",
+        "ptt_start": "#/$defs/PttStart",
+        "ptt_stop": "#/$defs/PttStop",
+        "set_settings": "#/$defs/SetSettings",
+        "skill_run": "#/$defs/SkillRun",
+        "text_command": "#/$defs/TextCommand",
+        "undo": "#/$defs/Undo",
+        "voice_setup": "#/$defs/VoiceSetup"
+      },
+      "propertyName": "type"
+    },
+    "oneOf": [
+      {
+        "$ref": "#/$defs/PttStart"
+      },
+      {
+        "$ref": "#/$defs/PttStop"
+      },
+      {
+        "$ref": "#/$defs/TextCommand"
+      },
+      {
+        "$ref": "#/$defs/ConfirmResponse"
+      },
+      {
+        "$ref": "#/$defs/Cancel"
+      },
+      {
+        "$ref": "#/$defs/SetSettings"
+      },
+      {
+        "$ref": "#/$defs/Lock"
+      },
+      {
+        "$ref": "#/$defs/Undo"
+      },
+      {
+        "$ref": "#/$defs/EnrollStart"
+      },
+      {
+        "$ref": "#/$defs/EnrollCancel"
+      },
+      {
+        "$ref": "#/$defs/SkillRun"
+      },
+      {
+        "$ref": "#/$defs/VoiceSetup"
+      }
+    ]
+  }
+}

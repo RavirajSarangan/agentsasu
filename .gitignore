@@ -1,0 +1,17 @@
+node_modules/
+dist/
+target/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+apps/desktop/src/routeTree.gen.ts
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/binaries/
+core/build/
+core/dist/
+*.log
+.env

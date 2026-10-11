@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-api-keys"
+description = "Enables the api_keys command without any pre-configured scope."
+commands.allow = ["api_keys"]
+
+[[permission]]
+identifier = "deny-api-keys"
+description = "Denies the api_keys command without any pre-configured scope."
+commands.deny = ["api_keys"]

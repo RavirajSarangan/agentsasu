@@ -130,7 +130,7 @@ fn remove_api_key(core: tauri::State<'_, Core>, provider: String) -> Result<(), 
 /// Security locks (panic word, trap file, away) only lift with Touch ID / password.
 #[tauri::command]
 async fn unlock_secure(core: tauri::State<'_, Core>, reason: String) -> Result<bool, String> {
-    if !["panic", "canary", "away"].contains(&reason.as_str()) {
+    if !["panic", "canary", "away", "intruder"].contains(&reason.as_str()) {
         return Err("unknown lock".into());
     }
     let why = format!("unlock Sasu ({reason})");

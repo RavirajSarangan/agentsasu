@@ -18,6 +18,7 @@ const LOCK_TEXT: Record<string, string> = {
   panic: "Locked by your panic word",
   canary: "Locked: something touched a trap file",
   away: "Locked while you're away",
+  intruder: "Locked: someone else kept trying to use Sasu",
 };
 
 /** Security page extras: active locks, trap files, panic word, away lock, intruder log. */
@@ -127,6 +128,8 @@ export function SecurityExtras() {
         </div>
       </Group>
 
+      <SosSettings />
+
       <IntruderPhotos />
 
       <section className="flex flex-col gap-2">
@@ -193,5 +196,57 @@ function IntruderPhotos() {
         ))}
       </div>
     </section>
+  );
+}
+
+function SosSettings() {
+  const s = useSelector(settingsStore);
+  const [phrase, setPhrase] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [contact, setContact] = useState(s.sosContact);
+  return (
+    <Group title="Emergency" description="For the moments that matter. Both are off until you set them.">
+      <div className="flex flex-col gap-2 py-3.5">
+        <p className="flex items-center gap-2 text-[13px]">
+          <Siren size={14} className="text-[var(--danger)]" /> SOS phrase
+        </p>
+        <p className="text-[11.5px] text-[var(--muted)]">
+          Say it and, after a 5-second countdown you can cancel, Sasu texts your emergency contact with the time and your city.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="password"
+            value={phrase}
+            onChange={(e) => setPhrase(e.target.value)}
+            placeholder="A phrase you'd never say by accident"
+            className="h-8 flex-1 rounded-[8px] bg-[var(--sunken)] px-3 text-[12.5px] outline-none focus:shadow-[0_0_0_3px_var(--accent-glow)]"
+          />
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={phrase.trim().split(/\s+/).length < 2}
+            onClick={() => {
+              send({ type: "set_settings", settings: { sos_phrase: phrase } });
+              setPhrase("");
+              setSaved(true);
+            }}
+          >
+            {saved ? "Saved" : "Set"}
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={contact}
+            onChange={(e) => setContact(e.target.value)}
+            onBlur={() => updateSettings({ sosContact: contact.trim() })}
+            placeholder="Emergency contact: +94 77… or name@icloud.com"
+            className="h-8 flex-1 rounded-[8px] bg-[var(--sunken)] px-3 text-[12.5px] outline-none focus:shadow-[0_0_0_3px_var(--accent-glow)]"
+          />
+        </div>
+      </div>
+      <Row label="Lost-Mac alarm" hint="If a trap file is touched or 3 strangers try in 10 minutes: loud siren, red robot, screen locks. Touch ID stops it.">
+        <Switch label="Lost-Mac alarm" checked={s.lostAlarm} onChange={(lostAlarm) => updateSettings({ lostAlarm })} />
+      </Row>
+    </Group>
   );
 }

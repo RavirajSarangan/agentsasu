@@ -54,6 +54,12 @@ export type RobotSettings = {
   festivals: boolean;
   /** Take a camera photo when a stranger or a trap file triggers (opt-in). */
   intruderPhoto: boolean;
+  /** Emergency contact (phone or email) for the SOS phrase. */
+  sosContact: string;
+  /** Loud siren + lock when a trap file is touched or strangers keep trying. */
+  lostAlarm: boolean;
+  /** Remember the last 50 copied texts (encrypted) so you can ask for them back. */
+  clipboardMemory: boolean;
   /** First-run setup finished. */
   onboarded: boolean;
   uiLang: "en" | "ta";
@@ -98,6 +104,9 @@ const defaults: RobotSettings = {
   nudges: false,
   festivals: true,
   intruderPhoto: false,
+  sosContact: "",
+  lostAlarm: false,
+  clipboardMemory: false,
   onboarded: false,
   uiLang: "en",
 };
@@ -152,5 +161,8 @@ export function coreSettings(s: RobotSettings) {
     nudges: s.nudges,
     festivals: s.festivals,
     intruder_photo: s.intruderPhoto,
+    sos_contact: s.sosContact,
+    lost_alarm: s.lostAlarm,
+    clipboard_memory: s.clipboardMemory,
   };
 }

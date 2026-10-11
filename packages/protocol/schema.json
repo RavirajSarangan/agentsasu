@@ -12,7 +12,9 @@
             "enum": [
               "canary",
               "leak",
-              "panic"
+              "panic",
+              "siren",
+              "sos"
             ],
             "title": "Kind",
             "type": "string"
@@ -106,6 +108,35 @@
           "voice"
         ],
         "title": "BrainStatus",
+        "type": "object"
+      },
+      "Caption": {
+        "description": "Live meeting caption (on-device speech-to-text).",
+        "properties": {
+          "lang": {
+            "enum": [
+              "en",
+              "ta"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "caption",
+            "default": "caption",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "lang"
+        ],
+        "title": "Caption",
         "type": "object"
       },
       "ConfirmRequest": {
@@ -376,7 +407,8 @@
                 "user",
                 "panic",
                 "canary",
-                "away"
+                "away",
+                "intruder"
               ],
               "type": "string"
             },
@@ -394,6 +426,35 @@
           "reasons"
         ],
         "title": "Locked",
+        "type": "object"
+      },
+      "MeetingState": {
+        "properties": {
+          "lines": {
+            "default": 0,
+            "title": "Lines",
+            "type": "integer"
+          },
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          },
+          "seconds": {
+            "default": 0,
+            "title": "Seconds",
+            "type": "integer"
+          },
+          "type": {
+            "const": "meeting",
+            "default": "meeting",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "on"
+        ],
+        "title": "MeetingState",
         "type": "object"
       },
       "PartialTranscript": {
@@ -917,6 +978,7 @@
         "alarm": "#/$defs/Alarm",
         "auth_required": "#/$defs/AuthRequired",
         "brain_status": "#/$defs/BrainStatus",
+        "caption": "#/$defs/Caption",
         "confirm_request": "#/$defs/ConfirmRequest",
         "enroll_progress": "#/$defs/EnrollProgress",
         "error": "#/$defs/ErrorEvent",
@@ -928,6 +990,7 @@
         "level": "#/$defs/Level",
         "listening": "#/$defs/Listening",
         "locked": "#/$defs/Locked",
+        "meeting": "#/$defs/MeetingState",
         "partial_transcript": "#/$defs/PartialTranscript",
         "plan_preview": "#/$defs/PlanPreview",
         "privacy": "#/$defs/Privacy",
@@ -1057,6 +1120,12 @@
       },
       {
         "$ref": "#/$defs/SnapRequest"
+      },
+      {
+        "$ref": "#/$defs/Caption"
+      },
+      {
+        "$ref": "#/$defs/MeetingState"
       }
     ]
   },

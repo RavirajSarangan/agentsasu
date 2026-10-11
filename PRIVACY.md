@@ -15,6 +15,8 @@ analytics. This page explains exactly what happens to your data, based on what t
 | Activity log | `audit.sqlite` | Hash-chained so edits are detectable, file mode 0600 |
 | Undo history, skills | `undo.sqlite`, `skills.json` | File mode 0600 |
 | Intruder photos (only if you turn it on) | `intruders/` | File mode 0600, folder 0700 |
+| Diary, clipboard history (only if you turn it on) | `diary.bin`, `clips.bin` | AES-256-GCM, same key; clipboard history skips codes and passwords |
+| Meeting audio | Never saved | Captions are made on-device; only the text becomes notes |
 | AI keys | macOS Keychain | Never written to logs or sent anywhere except the provider you chose |
 
 The data folder is `~/Library/Application Support/dev.sasu.desktop/`.

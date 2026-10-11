@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from . import assist, briefing, extras, fastpath, focus
+from . import assist, briefing, extras, fastpath, focus, lifelog
 from . import memory as mem
 from .brain.agent import Agent, Executor, Turn
 from .brain.providers import SPECS, ChatClient, LLMError, pick_model
@@ -21,6 +21,7 @@ from .protocol import (
     AuthRequired,
     BrainStatus,
     Cancel,
+    Caption,
     ConfirmRequest,
     ConfirmResponse,
     Control,
@@ -43,6 +44,7 @@ from .protocol import (
     Lock,
     Locked,
     LockReason,
+    MeetingState,
     Privacy,
     ProfileRemove,
     PttStart,
@@ -113,6 +115,9 @@ class BrainSettings:
     intruder_photo: bool = False
     nudges: bool = False
     festivals: bool = True
+    sos_contact: str = ""
+    lost_alarm: bool = False
+    clipboard_memory: bool = False
     distractions: list[str] = field(default_factory=lambda: list(focus.DEFAULT_DISTRACTIONS))
 
 
@@ -165,7 +170,19 @@ class Core:
         self.memory = mem.Memory(data_dir / "memory.bin", vault.aead)
         self.photos_dir = data_dir / "intruders"
         self.snaps: dict[str, float] = {}
-        self._greeted_festival = ""  # pending snap id → expiry (monotonic)
+        self._greeted_festival = ""
+        self.sos = PanicWord(data_dir / "sos.json")
+        self._sos_task: asyncio.Task[None] | None = None
+        self._sos_cancel: asyncio.Event | None = None
+        self.sos_delay = 5.0  # seconds to say "cancel"
+        self._siren_turn: str | None = None
+        self._strangers: deque[float] = deque(maxlen=10)
+        self.meeting: list[str] | None = None
+        self._meeting_started = 0.0
+        self._meeting_lang: Lang = "en"
+        self.diary = mem.Memory(data_dir / "diary.bin", vault.aead, b"sasu-diary-v1", limit=2000)
+        self.clips = mem.Memory(data_dir / "clips.bin", vault.aead, b"sasu-clipboard-v1", limit=50)
+        self._diary_next = False  # pending snap id → expiry (monotonic)
         self._last_speaker: tuple[str, str] = ("Owner", "owner")
         self.last_lang: Lang = "en"
         self._watchers: list[asyncio.Task[None]] = []
@@ -217,6 +234,20 @@ class Core:
         if self.panic.heard_in(text):
             self._start(self.panic_lock())
             return
+        if self._sos_cancel is not None and lifelog.CANCEL.search(text):
+            self._sos_cancel.set()
+            return
+        if not guest and role in ("owner", "family") and self.sos.heard_in(text):
+            self._sos_task = asyncio.create_task(self.sos_turn(lang or detect_lang(text)))
+            return
+        if self.meeting is not None:
+            if lifelog.MEETING_STOP.search(text):
+                self._start(self.end_meeting())
+            return
+        if not guest and role == "owner" and self._diary_next:
+            self._diary_next = False
+            self._start(self.diary_add(text, lang or detect_lang(text)))
+            return
         if not guest and self.intruders_unseen:
             notice = self.intruders_unseen
             self.intruders_unseen = []
@@ -229,6 +260,40 @@ class Core:
                 self._start(self.translate_turn(text, lang or detect_lang(text)))
             return
         if not guest and role == "owner":
+            if lifelog.MEETING_START.search(text):
+                self._start(self.start_meeting(lang or detect_lang(text)))
+                return
+            if lifelog.DIARY_SUMMARY.search(text):
+                self._start(self.diary_summary(lang or detect_lang(text)))
+                return
+            if (entry := lifelog.parse_diary(text)) is not None:
+                self._start(self.diary_add(entry, lang or detect_lang(text)))
+                return
+            if lifelog.DIARY_ONLY.match(text.strip()):
+                self._diary_next = True
+                self._start(
+                    self._say_turn(
+                        "Go ahead, I'm listening."
+                        if (lang or detect_lang(text)) != "ta"
+                        else "சொல்லுங்க, கேக்கறேன்.",
+                        lang or detect_lang(text),
+                    )
+                )
+                return
+            if lifelog.CLIP_RECALL.search(text):
+                self._start(self.clip_recall(text, lang or detect_lang(text)))
+                return
+            if (layout := lifelog.parse_layout(text)) is not None:
+                self._start(
+                    self.fast_turn(
+                        text,
+                        fastpath.Fast(
+                            [("windows_arrange", layout)], "Done.", "முடிஞ்சது.", "windows"
+                        ),
+                        lang or detect_lang(text),
+                    )
+                )
+                return
             if (fact := mem.parse_save(text)) is not None:
                 self._start(self.remember(fact, lang or detect_lang(text)))
                 return
@@ -491,6 +556,7 @@ class Core:
         if kind == "canary":
             await self.request_snap("trap file")
             await self.lock("canary")
+            await self.siren("a trap file was touched")
 
     async def fast_turn(
         self, text: str, fast: fastpath.Fast, lang: Lang, *, guest: bool = False
@@ -628,7 +694,7 @@ class Core:
             await self.speak("There's nothing to undo.", "en")
             await self.hub.emit(TurnDone(ok=True))
             return
-        ctx = ToolContext(tid, self.journal, self.holding)
+        ctx = ToolContext(tid, self.journal, self.holding, self.runner)
         ok, items = await undo_turn(self.journal, tid, ctx)
         summary = "; ".join(items) or "nothing to undo"
         self.audit.append("undo", turn=tid, ok=ok, summary=summary)
@@ -725,6 +791,7 @@ class Core:
             asyncio.create_task(self._watch_away()),
             asyncio.create_task(self._watch_music()),
             asyncio.create_task(self._watch_nudges()),
+            asyncio.create_task(self._watch_clipboard()),
         ]
         if voice_models.ready(self.models_dir):
             await self.start_voice()
@@ -815,6 +882,7 @@ class Core:
                     await self.hub.emit(TurnDone(ok=False))
                     return
                 self.audit.append("guest", score=score)
+                await self.note_stranger()
                 role = "guest"
         if self.voice:
             self.voice.follow_up = True  # keep listening after the reply, no wake word needed
@@ -928,6 +996,228 @@ class Core:
                     warned_events.add(title)
                     await self.hub.emit(Fun(kind="briefing"))
                     await self.speak(f"Heads up: {title} starts in five minutes.", "en")
+
+    async def _say_turn(self, text: str, lang: Lang, ok: bool = True) -> None:
+        await self.speak(text, lang)
+        await self.hub.emit(TurnDone(ok=ok))
+
+    # ── meeting notes ──────────────────────────────────────────────────────
+    async def start_meeting(self, lang: Lang) -> None:
+        import time as _t
+
+        if not self.voice:
+            await self._say_turn("Turn on voice first, then I can take meeting notes.", "en", False)
+            return
+        await self.speak(
+            "Taking notes. Say stop meeting when you're done."
+            if lang != "ta"
+            else "Notes எடுக்கறேன். முடிஞ்சதும் meeting முடிஞ்சதுன்னு சொல்லுங்க.",
+            lang,
+        )
+        self.meeting, self._meeting_started, self._meeting_lang = [], _t.time(), lang
+        self.voice.set_meeting(True)
+        self.audit.append("meeting", state="start")
+        await self.hub.emit(MeetingState(on=True))
+        await self.hub.emit(TurnDone(ok=True))
+
+    async def meeting_caption(self, text: str, lang: str) -> None:
+        import time as _t
+
+        if self.meeting is None:
+            return
+        if lifelog.MEETING_STOP.search(text):
+            self._start(self.end_meeting())
+            return
+        self.meeting.append(text)
+        await self.hub.emit(Caption(text=text, lang="ta" if lang == "ta" else "en"))
+        await self.hub.emit(
+            MeetingState(
+                on=True, seconds=int(_t.time() - self._meeting_started), lines=len(self.meeting)
+            )
+        )
+
+    async def end_meeting(self) -> None:
+        import time as _t
+
+        lines, self.meeting = self.meeting or [], None
+        if self.voice:
+            self.voice.set_meeting(False)
+        lang = self._meeting_lang
+        secs = int(_t.time() - self._meeting_started)
+        await self.hub.emit(MeetingState(on=False, seconds=secs, lines=len(lines)))
+        self.audit.append("meeting", state="stop", seconds=secs, lines=len(lines))
+        if not lines:
+            await self._say_turn("Meeting stopped. I didn't hear anything to note.", "en")
+            return
+        await self.hub.emit(Thinking())
+        transcript = "\n".join(lines)
+        notes = (
+            await self._single_shot(lifelog.meeting_messages(transcript, lang))
+            if self.brain_ready
+            else None
+        )
+        body = (notes + "\n\n— Transcript —\n" + transcript) if notes else transcript
+        title = "Meeting notes " + _t.strftime(
+            "%d %b %Y, %H:%M", _t.localtime(self._meeting_started)
+        )
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role="owner")
+        turn.plan_approved = True
+        result = await self._executor().call("notes_add", {"title": title, "body": body}, turn)
+        ok = result.startswith("OK")
+        msg = (
+            ("Saved the meeting notes in Notes." if notes else "Saved the transcript in Notes.")
+            if ok
+            else "I couldn't save to Notes."
+        )
+        await self.speak(
+            msg
+            if lang != "ta"
+            else ("Meeting notes Notes-ல save பண்ணிட்டேன்." if ok else "Notes-ல save பண்ண முடியல."),
+            lang,
+        )
+        actions = self.journal.pending(turn.id)
+        if actions:
+            await self.hub.emit(
+                UndoAvailable(turn_id=turn.id, actions=[a.describe() for a in actions])
+            )
+        await self.hub.emit(TurnDone(ok=ok))
+
+    # ── SOS and lost-Mac alarm ─────────────────────────────────────────────
+    async def sos_turn(self, lang: Lang) -> None:
+        import time as _t
+
+        contact = self.settings.sos_contact.strip()
+        if not contact:
+            await self.speak("Set an emergency contact in Settings, Security first.", "en")
+            return
+        self._sos_cancel = cancel = asyncio.Event()
+        self.audit.append("alarm", alarm="sos", detail="countdown")
+        await self.hub.emit(
+            Alarm(kind="sos", detail="Sending SOS in 5 seconds. Say cancel to stop.")
+        )
+        await self._say(
+            "Sending S O S in 5 seconds. Say cancel to stop."
+            if lang != "ta"
+            else "5 விநாடியில் SOS அனுப்பறேன். வேண்டாம்னா cancel சொல்லுங்க."
+        )
+        try:
+            await asyncio.wait_for(cancel.wait(), self.sos_delay)
+            self._sos_cancel = None
+            self.audit.append("alarm", alarm="sos", detail="cancelled")
+            await self.speak("SOS cancelled." if lang != "ta" else "SOS ரத்து பண்ணிட்டேன்.", lang)
+            return
+        except TimeoutError:
+            pass
+        self._sos_cancel = None
+        where = f" Last known area: {self.settings.city}." if self.settings.city else ""
+        who = self._last_speaker[0] if self._last_speaker[0] != "Owner" else "the owner of this Mac"
+        text = f"SOS from {who}, sent by Sasu at {_t.strftime('%H:%M, %d %b')}. I may need help, please call me.{where}"
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role="owner")
+        turn.plan_approved = True
+        result = await self._executor().call("messages_send", {"to": contact, "text": text}, turn)
+        ok = result.startswith("OK")
+        self.audit.append("alarm", alarm="sos", detail="sent" if ok else "failed")
+        await self.speak(
+            ("SOS sent." if ok else "I couldn't send the SOS. Please call for help.")
+            if lang != "ta"
+            else ("SOS அனுப்பிட்டேன்." if ok else "SOS அனுப்ப முடியல. உடனே call பண்ணுங்க."),
+            lang,
+        )
+
+    async def note_stranger(self) -> None:
+        import time as _t
+
+        now = _t.time()
+        self._strangers.append(now)
+        if sum(1 for t in self._strangers if now - t < 600) >= 3:
+            await self.siren("3 strangers tried to use Sasu")
+
+    async def siren(self, reason: str) -> None:
+        """Lost-Mac alarm (opt-in): loud siren, robot flashes red, screen locks."""
+        if not self.settings.lost_alarm or self._siren_turn:
+            return
+        turn = Turn(id=uuid.uuid4().hex[:12], lang="en", role="owner")
+        turn.plan_approved = True
+        await self._executor().call("system_volume", {"level": 80}, turn)
+        self._siren_turn = turn.id
+        self.audit.append("alarm", alarm="siren", detail=reason)
+        await self.hub.emit(Alarm(kind="siren", detail=reason))
+        await self.runner(["pmset", "displaysleepnow"], 5, None)
+        await self.lock("intruder")
+
+    # ── diary ──────────────────────────────────────────────────────────────
+    async def diary_add(self, text: str, lang: Lang) -> None:
+        self.diary.add(text)
+        self.audit.append("diary", action="add", chars=len(text))
+        await self._say_turn("Saved in your diary." if lang != "ta" else "டைரில எழுதிட்டேன்.", lang)
+
+    async def diary_summary(self, lang: Lang) -> None:
+        import time as _t
+
+        week = [e.text for e in self.diary.all() if e.at > _t.time() - 7 * 86400]
+        if not week:
+            await self._say_turn(
+                "Your diary is empty this week." if lang != "ta" else "இந்த வாரம் டைரில எதுவும் இல்ல.",
+                lang,
+            )
+            return
+        await self.hub.emit(Thinking())
+        recap = (
+            await self._single_shot(lifelog.diary_messages(week, lang))
+            if self.brain_ready
+            else None
+        )
+        if not recap:
+            recap = f"You wrote {len(week)} entries this week. The last one: {week[-1]}"
+        await self._say_turn(recap, "ta" if assist.TAMIL.search(recap) else lang)
+
+    # ── clipboard memory ───────────────────────────────────────────────────
+    async def _watch_clipboard(self) -> None:
+        last = ""
+        while True:
+            await asyncio.sleep(2)
+            if not self.settings.clipboard_memory or self.locked:
+                continue
+            got = await self.runner(["pbpaste"], 3, None)
+            clip = got.out.strip() if got.ok else ""
+            if clip and clip != last:
+                last = clip
+                recent = self.clips.all()[-1:] if self.clips.path.exists() else []
+                if lifelog.worth_keeping(clip) and not (recent and recent[0].text == clip):
+                    self.clips.add(clip)
+
+    async def clip_recall(self, text: str, lang: Lang) -> None:
+        clips = self.clips.all() if self.clips.path.exists() else []
+        if not clips:
+            await self._say_turn(
+                "I don't have any clipboard history. Turn on clipboard memory in Settings."
+                if lang != "ta"
+                else "Clipboard history இல்ல. Settings-ல on பண்ணுங்க.",
+                lang,
+                False,
+            )
+            return
+        want_link = "link" in text.lower() or "லிங்க்" in text
+        pool = [c for c in clips if lifelog.URL.search(c.text)] if want_link else clips
+        hits = self.clips.search(text, limit=1) if not want_link else []
+        best = (
+            hits[0]
+            if hits
+            else (
+                pool[-2]
+                if len(pool) > 1 and pool[-1].text == clips[-1].text and not want_link
+                else (pool[-1] if pool else clips[-1])
+            )
+        )
+        turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role="owner")
+        await self._executor().call("clipboard_set", {"text": best.text}, turn)
+        desc = lifelog.describe_clip(best.text)
+        await self._say_turn(
+            f"You copied {desc}. It's back on your clipboard."
+            if lang != "ta"
+            else f"நீங்க copy பண்ணது {desc}. மறுபடி clipboard-ல வெச்சிட்டேன்.",
+            lang,
+        )
 
     async def remember(self, fact: str, lang: Lang) -> None:
         self.memory.add(fact)
@@ -1044,6 +1334,11 @@ class Core:
             return
         self.locks.discard(reason)
         self.audit.append("unlock", reason=reason)
+        if reason in ("intruder", "canary") and self._siren_turn:
+            tid, self._siren_turn = self._siren_turn, None
+            await undo_turn(
+                self.journal, tid, ToolContext(tid, self.journal, self.holding, self.runner)
+            )
         await self.hub.emit(Unlocked() if not self.locked else Locked(reasons=sorted(self.locks)))
 
     # ── inputs ─────────────────────────────────────────────────────────────
@@ -1123,6 +1418,17 @@ class Core:
             changed = True
         if s.get("guest_mode") in ("guest", "reject"):
             self.settings.guest_mode = s["guest_mode"]
+        if isinstance(sc := s.get("sos_contact"), str):
+            self.settings.sos_contact = sc.strip()[:80]
+        if isinstance(sp := s.get("sos_phrase"), str):
+            self.sos.update(sp)
+            self.audit.append("sos_phrase", set=self.sos.set)
+        if isinstance(la := s.get("lost_alarm"), bool):
+            self.settings.lost_alarm = la
+        if isinstance(cm := s.get("clipboard_memory"), bool):
+            self.settings.clipboard_memory = cm
+            if not cm and self.clips.path.exists():
+                self.clips.path.unlink()
         if isinstance(nu := s.get("nudges"), bool):
             self.settings.nudges = nu
         if isinstance(fe := s.get("festivals"), bool):
@@ -1235,3 +1541,6 @@ class CoreVoice(Callbacks):
 
     async def on_timeout(self) -> None:
         await self.core.hub.emit(Idle())
+
+    async def on_caption(self, text: str, lang: str) -> None:
+        await self.core.meeting_caption(text, lang)

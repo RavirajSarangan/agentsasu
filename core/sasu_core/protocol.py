@@ -101,7 +101,7 @@ class Sleep(BaseModel):
     type: Literal["sleep"] = "sleep"
 
 
-LockReason = Literal["screen", "disabled", "user", "panic", "canary", "away"]
+LockReason = Literal["screen", "disabled", "user", "panic", "canary", "away", "intruder"]
 
 
 class SpeakerRejected(BaseModel):
@@ -203,6 +203,21 @@ class SnapRequest(BaseModel):
     reason: str
 
 
+class Caption(BaseModel):
+    """Live meeting caption (on-device speech-to-text)."""
+
+    type: Literal["caption"] = "caption"
+    text: str
+    lang: Lang
+
+
+class MeetingState(BaseModel):
+    type: Literal["meeting"] = "meeting"
+    on: bool
+    seconds: int = 0
+    lines: int = 0
+
+
 class Idle(BaseModel):
     """Listening ended with nothing to do; the robot relaxes."""
 
@@ -213,7 +228,7 @@ class Alarm(BaseModel):
     """Something tried to misuse Sasu (trap file touched, data leak blocked)."""
 
     type: Literal["alarm"] = "alarm"
-    kind: Literal["canary", "leak", "panic"]
+    kind: Literal["canary", "leak", "panic", "siren", "sos"]
     detail: str
 
 
@@ -291,7 +306,9 @@ CoreEvent = Annotated[
     | Idle
     | FocusState
     | TranslateMode
-    | SnapRequest,
+    | SnapRequest
+    | Caption
+    | MeetingState,
     Field(discriminator="type"),
 ]
 

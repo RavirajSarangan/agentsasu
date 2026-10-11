@@ -37,6 +37,10 @@ No buttons, no commands to learn. Speak the way you'd talk to a friend.
 | “இது என்ன?” | தமிழ் | Looks at your screen and explains it in Tamil |
 | “Translate mode” | English | You speak Tamil, Sasu says it in English, and back |
 | “Remember amma's birthday is June 3” | English | Saves it, encrypted, for later |
+| “Start meeting” … “meeting mudinjathu” | Tanglish | Live captions on your Mac, then notes and action items in Apple Notes |
+| “Safari-um Notes-um side by side” | Tanglish | Arranges the windows (undoable) |
+| “Munnaadi copy panna link enna?” | Tanglish | Finds what you copied earlier and puts it back |
+| “Inniku diary” | Tanglish | Takes a spoken diary entry, encrypted |
 | “Sasu, undo” | any | Puts back whatever it just changed |
 
 Common requests (music, volume, opening apps, time, battery, dark mode) run **on your Mac in about 1.5 s**, without any AI service.
@@ -96,6 +100,8 @@ An assistant that can touch your whole Mac has to be hard to misuse: by people n
 | **Trap files** | Decoy “password” files. If anything (even a tricked AI) touches them, Sasu locks and alarms. |
 | **Leak guard** | Text read from files or web pages can't be smuggled out through links or commands. |
 | **Panic word** | Say it and Sasu locks instantly, until Touch ID. |
+| **SOS phrase** | A secret phrase texts your emergency contact after a 5-second countdown you can cancel. |
+| **Lost-Mac alarm** | Trap file touched or 3 strangers in 10 minutes: loud siren, red robot, screen locks. Touch ID stops it. |
 | **Intruder log and photo** | Every stranger attempt is logged; an optional single camera photo. |
 | **Deaf when you're away** | Locks with the screen, fast user switching, and idle time. <kbd>⌘</kbd><kbd>⌥</kbd><kbd>Esc</kbd> stops everything. |
 | **Tamper-evident log** | Every action is sealed in a hash chain; edits show up on the Security page. |
@@ -177,9 +183,9 @@ docs/           Architecture and images
 - [x] Hands-free voice in English, Tamil and Tanglish
 - [x] Undo, plan preview, privacy meter, family profiles
 - [x] Briefing, focus, translator, screen explain, memory
-- [ ] Meeting notes (on-device captions → summary in Notes)
-- [ ] SOS phrase and lost-Mac alarm
-- [ ] Clipboard memory, window layouts by voice, voice diary
+- [x] Meeting notes (on-device captions → summary in Notes)
+- [x] SOS phrase and lost-Mac alarm
+- [x] Clipboard memory, window layouts by voice, voice diary
 - [ ] Native Swift core (smaller, faster app) and a signed download
 
 ## Contributing

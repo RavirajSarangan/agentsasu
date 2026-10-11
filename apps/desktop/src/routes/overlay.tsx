@@ -3,7 +3,7 @@ import { useSelector } from "@tanstack/react-store";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { packs } from "@sasu/brand";
+import { packs, tone } from "@sasu/brand";
 import { DanceGlow, FloatingNotes, NowPlaying } from "../robot/DanceFx";
 import { ModeChips } from "../robot/ModeChips";
 import { startSnapListener } from "../robot/Snap";
@@ -46,6 +46,18 @@ function Overlay() {
   const focusState = useSelector(agentStore, (s) => s.focus);
   const translating = useSelector(agentStore, (s) => s.translating);
   const festival = useSelector(agentStore, (s) => s.festival);
+  const meeting = useSelector(agentStore, (s) => s.meeting);
+  const siren = useSelector(agentStore, (s) => s.siren);
+  // Lost-Mac alarm: a two-tone siren until Sasu is unlocked with Touch ID.
+  useEffect(() => {
+    if (!siren) return;
+    let hi = false;
+    const t = setInterval(() => {
+      hi = !hi;
+      tone(hi ? 960 : 640, 0, 0.45, { type: "sawtooth", gain: 0.22, cutoff: 3000 });
+    }, 450);
+    return () => clearInterval(t);
+  }, [siren]);
   useEffect(() => startSnapListener(), []);
   const settings = useSelector(settingsStore);
   const [mood, setMood] = useState<null | "pet" | "dizzy" | "break">(null);
@@ -193,7 +205,7 @@ function Overlay() {
       {/* One row of small chips, so they never push the robot out of the window. */}
       <div className="flex max-w-[250px] flex-wrap items-center justify-center gap-1.5 empty:hidden">
         {dancing && !busy && <NowPlaying song={song} />}
-        <ModeChips focus={focusState} translating={translating} />
+        <ModeChips focus={focusState} translating={translating} meeting={meeting} />
         {festival && !busy && <span className="text-[18px]" aria-label="festival">{FESTIVE[festival] ?? "🎉"}</span>}
       </div>
 
@@ -222,6 +234,7 @@ function Overlay() {
           showPanel();
         }}
       >
+        {siren && <div aria-hidden className="siren pointer-events-none absolute inset-[15%]" />}
         {dancing && !busy ? <DanceGlow size={size} /> : <Halo state={shown} size={size} />}
         {dancing && !busy && <FloatingNotes size={size} />}
         <motion.div

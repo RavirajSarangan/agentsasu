@@ -4,7 +4,7 @@ import { z } from "zod";
 
 export const Lang = z.enum(["en", "ta"]);
 export const Risk = z.enum(["safe", "confirm", "dangerous"]);
-export const LockReason = z.enum(["screen", "disabled", "user", "panic", "canary", "away"]);
+export const LockReason = z.enum(["screen", "disabled", "user", "panic", "canary", "away", "intruder"]);
 export type Lang = z.infer<typeof Lang>;
 export type LockReason = z.infer<typeof LockReason>;
 export type Risk = z.infer<typeof Risk>;
@@ -54,7 +54,9 @@ export const CoreEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("focus"), remaining: z.number(), total: z.number() }),
   z.object({ type: z.literal("translate_mode"), on: z.boolean() }),
   z.object({ type: z.literal("snap_request"), id: z.string(), reason: z.string() }),
-  z.object({ type: z.literal("alarm"), kind: z.enum(["canary", "leak", "panic"]), detail: z.string() }),
+  z.object({ type: z.literal("caption"), text: z.string(), lang: Lang }),
+  z.object({ type: z.literal("meeting"), on: z.boolean(), seconds: z.number().default(0), lines: z.number().default(0) }),
+  z.object({ type: z.literal("alarm"), kind: z.enum(["canary", "leak", "panic", "siren", "sos"]), detail: z.string() }),
   z.object({ type: z.literal("intruder"), text: z.string(), score: z.number(), count: z.number() }),
   z.object({ type: z.literal("fun"), kind: z.enum(["dance", "joke", "night", "briefing", "festival"]), on: z.boolean().default(true), detail: z.string().default("") }),
   z.object({ type: z.literal("idle") }),

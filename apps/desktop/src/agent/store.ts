@@ -24,6 +24,10 @@ export type AgentState = {
   /** Focus mode: seconds left and total, or null. */
   focus: { remaining: number; total: number } | null;
   translating: boolean;
+  /** Meeting notes running: seconds, lines, last caption. */
+  meeting: { seconds: number; lines: number; caption: string } | null;
+  /** Lost-Mac siren is sounding. */
+  siren: boolean;
   /** Today's festival id (robot dresses up), or null. */
   festival: string | null;
   /** What left the Mac in the last turn. */
@@ -45,6 +49,8 @@ export const agentStore = new Store<AgentState>({
   song: null,
   focus: null,
   translating: false,
+  meeting: null,
+  siren: false,
   festival: null,
   privacy: null,
   log: [],
@@ -103,6 +109,15 @@ export function applyEvent(event: CoreEvent) {
     song: event.type === "fun" && event.kind === "dance" ? (event.on ? event.detail || "music" : null) : s.song,
     focus: event.type === "focus" ? (event.remaining > 0 ? { remaining: event.remaining, total: event.total } : null) : s.focus,
     translating: event.type === "translate_mode" ? event.on : s.translating,
+    meeting:
+      event.type === "meeting"
+        ? event.on
+          ? { seconds: event.seconds, lines: event.lines, caption: s.meeting?.caption ?? "" }
+          : null
+        : event.type === "caption" && s.meeting
+          ? { ...s.meeting, caption: event.text }
+          : s.meeting,
+    siren: event.type === "alarm" && event.kind === "siren" ? true : event.type === "unlocked" ? false : s.siren,
     festival: event.type === "fun" && event.kind === "festival" ? event.detail : s.festival,
     privacy: event.type === "privacy" ? event : s.privacy,
     log: [{ at: Date.now(), event }, ...s.log].slice(0, LOG_LIMIT),

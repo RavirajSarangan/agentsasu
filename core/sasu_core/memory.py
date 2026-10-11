@@ -53,28 +53,33 @@ def _words(text: str) -> set[str]:
 
 
 class Memory:
-    def __init__(self, path: Path, aead: AESGCM) -> None:
+    """An encrypted list of short texts. Also used for the diary and clipboard history."""
+
+    def __init__(self, path: Path, aead: AESGCM, aad: bytes = AAD, limit: int = 500) -> None:
         self.path = path
         self._aead = aead
+        self._aad = aad
+        self._limit = limit
 
     def all(self) -> list[Fact]:
         if not self.path.exists():
             return []
         raw = self.path.read_bytes()
-        return [Fact(**f) for f in json.loads(self._aead.decrypt(raw[:12], raw[12:], AAD))]
+        return [Fact(**f) for f in json.loads(self._aead.decrypt(raw[:12], raw[12:], self._aad))]
 
     def _save(self, facts: list[Fact]) -> None:
         nonce = os.urandom(12)
         tmp = self.path.with_suffix(".tmp")
         tmp.write_bytes(
-            nonce + self._aead.encrypt(nonce, json.dumps([asdict(f) for f in facts]).encode(), AAD)
+            nonce
+            + self._aead.encrypt(nonce, json.dumps([asdict(f) for f in facts]).encode(), self._aad)
         )
         os.chmod(tmp, 0o600)
         tmp.replace(self.path)
 
     def add(self, text: str) -> Fact:
         fact = Fact(uuid.uuid4().hex[:10], text.strip().rstrip("."), time.time())
-        self._save([*self.all(), fact][-500:])
+        self._save([*self.all(), fact][-self._limit :])
         return fact
 
     def search(self, query: str, limit: int = 3) -> list[Fact]:

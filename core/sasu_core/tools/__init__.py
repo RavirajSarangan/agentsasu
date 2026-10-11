@@ -1,6 +1,19 @@
 """Importing this package registers every tool."""
 
-from . import apps, clipboard, files, keyboard, media, productivity, shell, system, web  # noqa: F401
+# Importing each module registers its tools.
+from . import (  # noqa: F401
+    apps,
+    clipboard,
+    files,
+    keyboard,
+    media,
+    messages,
+    productivity,
+    shell,
+    system,
+    web,
+    windows,
+)
 from .registry import GUEST_TOOLS, REGISTRY, Tool, ToolContext, ToolResult, schemas
 
 __all__ = ["GUEST_TOOLS", "REGISTRY", "Tool", "ToolContext", "ToolResult", "schemas"]

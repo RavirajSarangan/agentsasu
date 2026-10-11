@@ -8,9 +8,33 @@ function fmt(s: number) {
 }
 
 /** Small status chips under the robot: focus countdown, translator mode. */
-export function ModeChips({ focus, translating }: { focus: { remaining: number; total: number } | null; translating: boolean }) {
+export function ModeChips({
+  focus,
+  translating,
+  meeting,
+}: {
+  focus: { remaining: number; total: number } | null;
+  translating: boolean;
+  meeting: { seconds: number; lines: number; caption: string } | null;
+}) {
   return (
     <AnimatePresence>
+      {meeting && (
+        <motion.div key="meet" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} className="flex max-w-[240px] flex-col items-center gap-1">
+          <button
+            onClick={() => send({ type: "text_command", text: "stop meeting" })}
+            title="Click to stop and save notes"
+            className="glass flex items-center gap-1.5 rounded-full py-1 pl-2 pr-3 text-[11.5px] font-semibold tabular-nums"
+          >
+            <span className="blink h-2 w-2 rounded-full bg-[#ef4444]" /> REC {fmt(meeting.seconds)} · {meeting.lines} lines
+          </button>
+          {meeting.caption && (
+            <motion.p key={meeting.caption} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass line-clamp-2 rounded-[12px] px-2.5 py-1 text-center text-[11px] leading-snug">
+              {meeting.caption}
+            </motion.p>
+          )}
+        </motion.div>
+      )}
       {focus && (
         <motion.button
           key="focus"

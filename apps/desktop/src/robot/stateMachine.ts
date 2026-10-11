@@ -90,6 +90,8 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
     case "focus":
     case "translate_mode":
     case "snap_request":
+    case "caption":
+    case "meeting":
       return { ...view };
     case "idle":
       return { ...next, state: "idle", caption: "", activeTool: null };

@@ -32,6 +32,9 @@ export function PersonalSettings() {
       <Row label="Heads-ups" hint="Speaks up when the battery is low or a meeting starts in 5 minutes.">
         <Switch label="Heads-ups" checked={s.nudges} onChange={(nudges) => updateSettings({ nudges })} />
       </Row>
+      <Row label="Clipboard memory" hint="Remembers your last 50 copies (encrypted, skips codes and passwords). Ask “what did I copy?”">
+        <Switch label="Clipboard memory" checked={s.clipboardMemory} onChange={(clipboardMemory) => updateSettings({ clipboardMemory })} />
+      </Row>
       <Row label="Festival mode" hint="Pongal, Tamil New Year, Deepavali, Christmas: a festive hello and outfit.">
         <Switch label="Festival mode" checked={s.festivals} onChange={(festivals) => updateSettings({ festivals })} />
       </Row>

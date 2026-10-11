@@ -24,7 +24,7 @@ from . import models
 from .wake import find_wake, is_stop
 
 SR = 16_000
-Mode = Literal["idle", "command", "speaking", "enroll"]
+Mode = Literal["idle", "command", "speaking", "enroll", "meeting"]
 
 
 @dataclass
@@ -42,6 +42,7 @@ class Callbacks:
     async def on_level(self, rms: float) -> None: ...
     async def on_enroll_sample(self, embedding: list[float]) -> None: ...
     async def on_timeout(self) -> None: ...
+    async def on_caption(self, text: str, lang: str) -> None: ...
 
 
 def _lang(raw: Any, text: str) -> str:
@@ -160,6 +161,8 @@ class VoicePipeline:
         self.vad.reset()
 
     def set_speaking(self, speaking: bool) -> None:
+        if self.mode == "meeting":
+            return  # meetings keep transcribing; Sasu stays quiet anyway
         if speaking:
             self.mode = "speaking"
         elif self.mode == "speaking":
@@ -169,6 +172,12 @@ class VoicePipeline:
             else:
                 self.mode = "idle"
                 self.vad.reset()
+
+    def set_meeting(self, on: bool) -> None:
+        """Meeting notes: every utterance becomes a caption, no wake word."""
+        self.mode = "meeting" if on else "idle"
+        self.follow_up = False
+        self.vad.reset()
 
     def set_enroll(self, on: bool) -> None:
         self.mode = "enroll" if on else "idle"
@@ -269,6 +278,11 @@ class VoicePipeline:
     async def _segment(self, samples: np.ndarray) -> None:
         secs = len(samples) / SR
         run = self.loop.run_in_executor
+        if self.mode == "meeting":
+            text, lang = await run(None, self._decode, self.turbo, samples)
+            if text:
+                await self.cb.on_caption(text, lang)
+            return
         if self.mode == "speaking":
             if secs < 3:
                 text, _ = await run(None, self._decode, self.tiny, samples)

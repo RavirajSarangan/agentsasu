@@ -61,6 +61,10 @@ export type RobotSettings = {
   daughterName: string;
   /** Loud siren + lock when a trap file is touched or strangers keep trying. */
   lostAlarm: boolean;
+  /** Rahu kaalam and thithi in the "Good morning" briefing. */
+  panchangam: boolean;
+  /** A spoken heads-up 5 minutes before Rahu kaalam. */
+  rahuAlert: boolean;
   /** Warn out loud when a copied message looks like a scam (checked on this Mac only). */
   scamGuard: boolean;
   /** Remember the last 50 copied texts (encrypted) so you can ask for them back. */
@@ -114,6 +118,8 @@ const defaults: RobotSettings = {
   daughterName: "",
   lostAlarm: false,
   scamGuard: false,
+  panchangam: true,
+  rahuAlert: false,
   clipboardMemory: false,
   onboarded: false,
   uiLang: "en",
@@ -174,5 +180,7 @@ export function coreSettings(s: RobotSettings) {
     lost_alarm: s.lostAlarm,
     clipboard_memory: s.clipboardMemory,
     scam_guard: s.scamGuard,
+    panchangam: s.panchangam,
+    rahu_alert: s.rahuAlert,
   };
 }

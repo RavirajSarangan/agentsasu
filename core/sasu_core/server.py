@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from . import __version__, care, tasks
+from . import __version__, care, panchangam, tasks
 from .core import Core
 from .demo import demo_loop
 from .hub import Hub
@@ -220,6 +220,27 @@ def create_app(
         ok = bool(re.fullmatch(r"[0-9a-f]{8}", did)) and core.care_store.remove(did)
         audit.append("care", action="delete", removed=ok)
         return {"ok": ok}
+
+    @app.get("/api/panchangam", dependencies=[Depends(require_token)])
+    async def get_panchangam() -> dict[str, Any]:
+        dd = await core.panchang_day()
+        return {
+            "date": dd.date.isoformat(),
+            "city": dd.place.city if dd.place else "",
+            "approximate": dd.approximate,
+            "sunrise": dd.sunrise.isoformat(),
+            "sunset": dd.sunset.isoformat(),
+            "rahu": panchangam.iso(dd.rahu),
+            "yama": panchangam.iso(dd.yama),
+            "kuligai": panchangam.iso(dd.kuligai),
+            "abhijit": panchangam.iso(dd.abhijit),
+            "tamil": {"en": panchangam.tamil_date(dd, "en"), "ta": panchangam.tamil_date(dd, "ta")},
+            "thithi": {
+                "en": panchangam.thithi_name(dd.thithi, "en"),
+                "ta": panchangam.thithi_name(dd.thithi, "ta"),
+                "n": dd.thithi,
+            },
+        }
 
     @app.get("/api/tasks", dependencies=[Depends(require_token)])
     async def list_tasks() -> list[dict[str, Any]]:

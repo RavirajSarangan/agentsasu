@@ -121,7 +121,11 @@ def _plural(n: int, word: str) -> str:
 
 
 def compose(
-    info: dict[str, Any], lang: str, name: str = "", now: time.struct_time | None = None
+    info: dict[str, Any],
+    lang: str,
+    name: str = "",
+    now: time.struct_time | None = None,
+    extra: str = "",
 ) -> str:
     now = now or time.localtime()
     clock = time.strftime("%-I:%M %p", now)
@@ -146,6 +150,8 @@ def compose(
             parts.append(f"{len(todos)} reminder பாக்கி இருக்கு.")
         if batt is not None and batt < 30:
             parts.append(f"Battery {batt}% தான், charge போடுங்க.")
+        if extra:
+            parts.append(extra)
         parts.append("நல்ல நாளா அமையட்டும்!")
     else:
         greet = (
@@ -170,5 +176,7 @@ def compose(
             parts.append(f"{_plural(len(todos), 'reminder')} still open.")
         if batt is not None and batt < 30:
             parts.append(f"Battery is at {batt}%, plug in when you can.")
+        if extra:
+            parts.append(extra)
         parts.append("Have a great day!")
     return " ".join(parts)

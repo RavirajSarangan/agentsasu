@@ -10,6 +10,7 @@ const LINES: { text: string; lang: "en" | "ta" | "mix"; does: string }[] = [
   { text: "Focus 25 minutes", lang: "en", does: "Closes distractions, then puts everything back when time's up" },
   { text: "இது என்ன?", lang: "ta", does: "Looks at your screen and explains it in Tamil" },
   { text: "Translate mode", lang: "en", does: "You speak Tamil, Sasu says it in English, and back" },
+  { text: "Inniku Rahu kaalam eppo?", lang: "mix", does: "Rahu kaalam, thithi and the Tamil date for your city" },
   { text: "Sasu, undo", lang: "en", does: "Puts back whatever it just changed" },
 ];
 

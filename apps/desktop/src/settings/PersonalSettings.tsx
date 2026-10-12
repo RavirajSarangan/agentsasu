@@ -38,6 +38,12 @@ export function PersonalSettings() {
       <Row label="Festival mode" hint="Pongal, Tamil New Year, Deepavali, Christmas: a festive hello and outfit.">
         <Switch label="Festival mode" checked={s.festivals} onChange={(festivals) => updateSettings({ festivals })} />
       </Row>
+      <Row label="Tamil Panchangam" hint="Rahu kaalam and thithi in “Good morning”, and a Today card on Home. Worked out on your Mac for your home city.">
+        <Switch label="Tamil Panchangam" checked={s.panchangam} onChange={(panchangam) => updateSettings({ panchangam })} />
+      </Row>
+      <Row label="Rahu kaalam heads-up" hint="Sasu says so 5 minutes before Rahu kaalam starts.">
+        <Switch label="Rahu kaalam heads-up" checked={s.rahuAlert} onChange={(rahuAlert) => updateSettings({ rahuAlert })} />
+      </Row>
     </Group>
   );
 }

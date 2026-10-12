@@ -11,7 +11,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from . import assist, briefing, care, extras, fastpath, focus, lifelog, scam, tasks, tidy, watch
+from . import (
+    assist,
+    briefing,
+    care,
+    extras,
+    fastpath,
+    focus,
+    lifelog,
+    panchangam,
+    scam,
+    tasks,
+    tidy,
+    watch,
+)
 from . import memory as mem
 from .brain.agent import Agent, Executor, Turn
 from .brain.providers import SPECS, ChatClient, LLMError, pick_model
@@ -125,6 +138,8 @@ class BrainSettings:
     lost_alarm: bool = False
     clipboard_memory: bool = False
     scam_guard: bool = False  # warn when a copied message looks like a scam (local rules only)
+    panchangam: bool = True  # Rahu kaalam + thithi in the morning briefing
+    rahu_alert: bool = False  # a heads-up 5 minutes before Rahu kaalam
     distractions: list[str] = field(default_factory=lambda: list(focus.DEFAULT_DISTRACTIONS))
 
 
@@ -190,6 +205,8 @@ class Core:
         self.watches: dict[str, tuple[watch.Watch, asyncio.Task[None]]] = {}
         self._bg: asyncio.Task[None] | None = None
         self.tasks = tasks.TaskStore(data_dir / "tasks.bin", vault.aead)
+        self.places = panchangam.PlaceCache(data_dir / "place.json")
+        self._rahu_warned: object = None
         self._unattended: str | None = None  # id of the scheduled task running now
         self._blocked: str | None = None  # the question an unattended run couldn't ask
         self._needs_you: str | None = None  # task waiting for "Sasu, run it"
@@ -269,6 +286,9 @@ class Core:
             self._start(
                 self.dose_answer(bool(care.CONFIRM_YES.match(text)), lang or detect_lang(text))
             )
+            return
+        if not guest and panchangam.ASK.search(text) and len(text.split()) <= 10:
+            self._start(self.panchang_turn(text, lang or detect_lang(text)))
             return
         if not guest and role in ("owner", "family", "elder") and scam.TRIGGER.search(text):
             self._start(self.scam_turn(text, lang or detect_lang(text)))
@@ -444,7 +464,10 @@ class Core:
         name = self._last_speaker[0] if self._last_speaker[0] != "Owner" else ""
         self.audit.append("briefing", weather=bool(info.get("weather")), events=len(info["events"]))
         await self.hub.emit(Fun(kind="briefing"))
-        await self.speak(briefing.compose(info, lang, name), lang)
+        extra = ""
+        if self.settings.panchangam:
+            extra = panchangam.briefing_line(await self.panchang_day(), lang)
+        await self.speak(briefing.compose(info, lang, name, extra=extra), lang)
         await self.hub.emit(TurnDone(ok=True))
 
     async def start_focus(self, minutes: int, lang: Lang) -> None:
@@ -1210,6 +1233,7 @@ class Core:
             asyncio.create_task(self._watch_clipboard()),
             asyncio.create_task(self._watch_care()),
             asyncio.create_task(self._watch_tasks()),
+            asyncio.create_task(self._watch_rahu()),
         ]
         if voice_models.ready(self.models_dir):
             await self.start_voice()
@@ -1640,6 +1664,55 @@ class Core:
             "Careful: the text you just copied looks like a scam. " + r.reasons_in("en")[0] + ".",
             "en",
         )
+
+    # ── panchangam ─────────────────────────────────────────────────────────
+    async def _place(self) -> panchangam.Place | None:
+        city = self.settings.city.strip()
+        if not city:
+            return None
+        if (cached := self.places.get(city)) is not None:
+            return cached
+        place = await panchangam.geocode(city, self.transport)
+        if place is not None:
+            self.places.put(city, place)
+        return place
+
+    async def panchang_day(self, offset: int = 0) -> panchangam.Day:
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+
+        place = await self._place()
+        zone = place.tz if place else panchangam.local_zone()
+        today = datetime.fromtimestamp(self.clock(), ZoneInfo(zone)).date()
+        return panchangam.day(today + timedelta(days=offset), place, zone)
+
+    async def panchang_turn(self, text: str, lang: Lang) -> None:
+        await self.hub.emit(Transcript(text=text, lang=lang))
+        dd = await self.panchang_day(1 if panchangam.TOMORROW.search(text) else 0)
+        self.audit.append("panchangam", date=dd.date.isoformat(), approximate=dd.approximate)
+        await self._say_turn(panchangam.answer(text, dd, lang), lang)
+
+    async def rahu_tick(self) -> None:
+        """Speak once, 5 minutes before today's Rahu kaalam (opt-in)."""
+        from datetime import datetime
+
+        if not self.settings.rahu_alert or self.locked:
+            return
+        dd = await self.panchang_day()
+        start, end = dd.rahu
+        lead = (start - datetime.fromtimestamp(self.clock(), start.tzinfo)).total_seconds()
+        if 0 <= lead <= 300 and self._rahu_warned != dd.date:
+            self._rahu_warned = dd.date
+            await self.speak(
+                f"ராகு காலம் 5 நிமிஷத்துல ஆரம்பிக்குது, {panchangam.span(dd.rahu)}.",
+                "ta",
+            )
+
+    async def _watch_rahu(self) -> None:
+        while True:
+            await asyncio.sleep(60)
+            if not (self._turn and not self._turn.done()):
+                await self.rahu_tick()
 
     async def scam_turn(self, text: str, lang: Lang) -> None:
         await self.hub.emit(Transcript(text=text, lang=lang))
@@ -2072,6 +2145,10 @@ class Core:
             self.audit.append("sos_phrase", set=self.sos.set)
         if isinstance(la := s.get("lost_alarm"), bool):
             self.settings.lost_alarm = la
+        if isinstance(pg := s.get("panchangam"), bool):
+            self.settings.panchangam = pg
+        if isinstance(ra := s.get("rahu_alert"), bool):
+            self.settings.rahu_alert = ra
         if isinstance(sg := s.get("scam_guard"), bool):
             self.settings.scam_guard = sg
         if isinstance(cm := s.get("clipboard_memory"), bool):

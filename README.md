@@ -47,6 +47,7 @@ No buttons, no commands to learn. Speak the way you'd talk to a friend.
 | “Download mudinja sollu” · “100% aana sollu” | Tanglish | Watches the download or battery and tells you when it's done |
 | “Indha page-la price kuranja sollu” | Tanglish | Checks the open page every 10 minutes and speaks up when the price drops |
 | “Daily 9 mani-ku good morning sollu” · “every Sunday Desktop clean pannu” | Tanglish | Runs it on a schedule; anything risky waits for your “run it” |
+| “Inniku Rahu kaalam eppo?” · “enna thithi?” | Tanglish | Rahu kaalam, Yamagandam, Kuligai, thithi and the Tamil date for your city, worked out on your Mac |
 | “Sasu, idhu scam-aa?” | Tanglish | Checks the copied message (or the one on screen) for OTP tricks, fake bank links, prizes, “digital arrest” |
 | “Sasu, undo” | any | Puts back whatever it just changed |
 

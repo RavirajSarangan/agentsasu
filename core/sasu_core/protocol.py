@@ -219,6 +219,15 @@ class MeetingState(BaseModel):
     lines: int = 0
 
 
+class ScamCheck(BaseModel):
+    """The verdict of a scam check, with the strongest reasons."""
+
+    type: Literal["scam"] = "scam"
+    verdict: Literal["scam", "suspicious", "looks_ok"]
+    reasons: list[str] = []
+    guard: bool = False  # True when the clipboard guard raised it on its own
+
+
 class TaskState(BaseModel):
     """A scheduled task ran (or needs the owner's yes)."""
 
@@ -341,7 +350,8 @@ CoreEvent = Annotated[
     | MeetingState
     | Care
     | WatchState
-    | TaskState,
+    | TaskState
+    | ScamCheck,
     Field(discriminator="type"),
 ]
 

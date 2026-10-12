@@ -41,6 +41,13 @@ describe("robot state machine", () => {
     expect(reduce(v, { type: "care", kind: "taken", who: "amma", what: "", time: "" })).toMatchObject({ big: true, state: "speaking" });
   });
 
+  it("shows a scam verdict until the turn settles", () => {
+    const v = run({ type: "scam", verdict: "scam", reasons: ["it asks for an OTP"], guard: false });
+    expect(v.scam).toEqual({ verdict: "scam", reasons: ["it asks for an OTP"] });
+    expect(reduce(v, { type: "settle" }).scam).toBeNull();
+    expect(reduce(v, { type: "transcript", text: "hi", lang: "en" }).scam).toBeNull();
+  });
+
   it("classifies tools", () => {
     expect(toolState("files.find")).toBe("searching");
     expect(toolState("shell.run")).toBe("working");

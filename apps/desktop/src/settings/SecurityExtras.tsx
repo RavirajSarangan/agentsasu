@@ -247,6 +247,9 @@ function SosSettings() {
       <Row label="Lost-Mac alarm" hint="If a trap file is touched or 3 strangers try in 10 minutes: loud siren, red robot, screen locks. Touch ID stops it.">
         <Switch label="Lost-Mac alarm" checked={s.lostAlarm} onChange={(lostAlarm) => updateSettings({ lostAlarm })} />
       </Row>
+      <Row label="Scam guard" hint="When you copy a message that looks like a scam (OTP request, fake bank link, prize, “digital arrest”), Sasu warns you. Checked on this Mac; nothing is sent.">
+        <Switch label="Scam guard" checked={s.scamGuard} onChange={(scamGuard) => updateSettings({ scamGuard })} />
+      </Row>
     </Group>
   );
 }

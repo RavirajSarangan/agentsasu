@@ -668,6 +668,44 @@
         "title": "SayStart",
         "type": "object"
       },
+      "ScamCheck": {
+        "description": "The verdict of a scam check, with the strongest reasons.",
+        "properties": {
+          "guard": {
+            "default": false,
+            "title": "Guard",
+            "type": "boolean"
+          },
+          "reasons": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "type": {
+            "const": "scam",
+            "default": "scam",
+            "title": "Type",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "scam",
+              "suspicious",
+              "looks_ok"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict"
+        ],
+        "title": "ScamCheck",
+        "type": "object"
+      },
       "Sleep": {
         "properties": {
           "type": {
@@ -1128,6 +1166,7 @@
         "say_chunk": "#/$defs/SayChunk",
         "say_end": "#/$defs/SayEnd",
         "say_start": "#/$defs/SayStart",
+        "scam": "#/$defs/ScamCheck",
         "sleep": "#/$defs/Sleep",
         "snap_request": "#/$defs/SnapRequest",
         "speaker_rejected": "#/$defs/SpeakerRejected",
@@ -1267,6 +1306,9 @@
       },
       {
         "$ref": "#/$defs/TaskState"
+      },
+      {
+        "$ref": "#/$defs/ScamCheck"
       }
     ]
   },

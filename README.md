@@ -47,6 +47,7 @@ No buttons, no commands to learn. Speak the way you'd talk to a friend.
 | “Download mudinja sollu” · “100% aana sollu” | Tanglish | Watches the download or battery and tells you when it's done |
 | “Indha page-la price kuranja sollu” | Tanglish | Checks the open page every 10 minutes and speaks up when the price drops |
 | “Daily 9 mani-ku good morning sollu” · “every Sunday Desktop clean pannu” | Tanglish | Runs it on a schedule; anything risky waits for your “run it” |
+| “Sasu, idhu scam-aa?” | Tanglish | Checks the copied message (or the one on screen) for OTP tricks, fake bank links, prizes, “digital arrest” |
 | “Sasu, undo” | any | Puts back whatever it just changed |
 
 Common requests (music, volume, opening apps, time, battery, dark mode) run **on your Mac in about 1.5 s**, without any AI service.
@@ -115,6 +116,7 @@ An assistant that can touch your whole Mac has to be hard to misuse: by people n
 | **Touch ID for risky steps** | Deleting, system changes, anything outside your home folder. Voice alone is never enough. |
 | **Trap files** | Decoy “password” files. If anything (even a tricked AI) touches them, Sasu locks and alarms. |
 | **Leak guard** | Text read from files or web pages can't be smuggled out through links or commands. |
+| **Scam checker and guard** | “Idhu scam-aa?” checks a message offline first (OTP requests, fake bank links, KYC, prizes, parcel fees, “digital arrest”); an AI can only make the verdict stricter. Optional guard warns when you copy a scam. |
 | **Panic word** | Say it and Sasu locks instantly, until Touch ID. |
 | **SOS phrase** | A secret phrase texts your emergency contact after a 5-second countdown you can cancel. |
 | **Lost-Mac alarm** | Trap file touched or 3 strangers in 10 minutes: loud siren, red robot, screen locks. Touch ID stops it. |

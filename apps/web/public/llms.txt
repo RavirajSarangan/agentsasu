@@ -6,6 +6,8 @@ Key facts:
 - Voice recognition, the wake word and voiceprints run on the Mac; only the text of a request goes to the AI the user picks (free Google Gemini or Groq, Anthropic Claude, or Ollama offline).
 - Only the owner's voice gets full access; family and kid profiles get limited access; strangers get guest mode.
 - Amma mode for elderly parents: slow Tamil speech and large captions, medicine reminders that ask "did you take it?" and text the family on a missed dose, calling family by voice, and a spoken "help" alert.
+- A scam checker ("Sasu, idhu scam-aa?") that flags OTP requests, fake bank links, prize and "digital arrest" messages, offline first.
+- Agent features: desktop tidy, watch & tell (downloads, battery, price drops, commands), and scheduled tasks that never auto-approve risky steps.
 - Risky actions need Touch ID; every action can be undone ("Sasu, undo"); a hash-chained log records everything.
 
 ## Links

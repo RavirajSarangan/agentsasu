@@ -1,4 +1,4 @@
-import { BookLock, Bug, Camera, EyeOff, FileLock2, FingerprintPattern, Ghost, Lock, ShieldCheck, Siren, UserRound, Users, UserX } from "lucide-react";
+import { BookLock, Bug, Camera, EyeOff, FileLock2, FingerprintPattern, Ghost, Lock, ShieldAlert, ShieldCheck, Siren, UserRound, Users, UserX } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Robot } from "../Robot";
@@ -15,6 +15,7 @@ const PROTECTIONS = [
   { Icon: FileLock2, title: "Tamper-evident log", body: "Every action is sealed in a hash chain. If a line is edited, the Security page shows it." },
   { Icon: Users, title: "Family voices", body: "Enrol family and kids. Kids get music, YouTube and jokes; only you can do risky things." },
   { Icon: Camera, title: "Intruder photo", body: "Optional: one camera photo when a stranger tries, or a trap file is touched. Stays on your Mac." },
+  { Icon: ShieldAlert, title: "Scam checker", body: "“Sasu, idhu scam-aa?” spots OTP tricks, fake bank links, prizes and “digital arrest” threats, and can warn when you copy one." },
   { Icon: BookLock, title: "Encrypted memory", body: "“Remember amma's birthday is June 3.” Encrypted, and only your voice can ask for it back." },
 ];
 

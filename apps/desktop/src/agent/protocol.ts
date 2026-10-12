@@ -62,6 +62,7 @@ export const CoreEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("care"), kind: z.enum(["due", "taken", "missed", "help"]), who: z.string(), what: z.string().default(""), time: z.string().default("") }),
   z.object({ type: z.literal("watch"), id: z.string(), kind: z.enum(["download", "battery", "page", "file", "command"]), label: z.string(), state: z.enum(["started", "fired", "stopped"]) }),
   z.object({ type: z.literal("task"), id: z.string(), state: z.enum(["running", "done", "needs_you", "failed"]), summary: z.string().default("") }),
+  z.object({ type: z.literal("scam"), verdict: z.enum(["scam", "suspicious", "looks_ok"]), reasons: z.array(z.string()).default([]), guard: z.boolean().default(false) }),
   z.object({ type: z.literal("idle") }),
   z.object({ type: z.literal("brain_status"), provider: z.string(), model: z.string(), ready: z.boolean(), keys: z.array(z.string()), voice: z.boolean() }),
 ]);

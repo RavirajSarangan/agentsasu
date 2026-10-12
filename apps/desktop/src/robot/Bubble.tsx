@@ -1,5 +1,5 @@
 import { useSelector } from "@tanstack/react-store";
-import { Check, FingerprintPattern, ListChecks, LoaderCircle, ShieldAlert, Undo2, X } from "lucide-react";
+import { Check, FingerprintPattern, ListChecks, LoaderCircle, ShieldAlert, ShieldCheck, Undo2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { send } from "../agent/connection";
@@ -10,7 +10,7 @@ type Flash = { ok: boolean; summary: string };
 
 /** Glass caption under the robot: streaming words, tool progress and yes/no prompts. */
 export function Bubble() {
-  const { caption, big, confirm, activeTool, lang, auth, plan, undo, state } = useSelector(agentStore, (s) => s.view);
+  const { caption, big, scam, confirm, activeTool, lang, auth, plan, undo, state } = useSelector(agentStore, (s) => s.view);
   const [flash, setFlash] = useState<Flash | null>(null);
 
   useEffect(() => {
@@ -73,6 +73,7 @@ export function Bubble() {
               ))}
             </ol>
           )}
+          {scam && <ScamChip verdict={scam.verdict} lang={lang} />}
           {text && <Words text={text} lines={big ? 5 : 4} />}
           {offerUndo && (
             <motion.button
@@ -136,6 +137,26 @@ export function Bubble() {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+const SCAM = {
+  scam: { color: "var(--danger)", en: "Looks like a scam", ta: "Scam மாதிரி இருக்கு", Icon: ShieldAlert },
+  suspicious: { color: "var(--warn)", en: "Be careful", ta: "கவனமா இருங்க", Icon: ShieldAlert },
+  looks_ok: { color: "var(--ok)", en: "No scam signs", ta: "Scam அடையாளம் இல்ல", Icon: ShieldCheck },
+} as const;
+
+function ScamChip({ verdict, lang }: { verdict: keyof typeof SCAM; lang: string }) {
+  const s = SCAM[verdict];
+  return (
+    <motion.p
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="mx-auto mb-1.5 flex w-fit items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+      style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 14%, transparent)` }}
+    >
+      <s.Icon size={12} /> {lang === "ta" ? s.ta : s.en}
+    </motion.p>
   );
 }
 

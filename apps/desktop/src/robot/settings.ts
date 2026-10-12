@@ -61,6 +61,8 @@ export type RobotSettings = {
   daughterName: string;
   /** Loud siren + lock when a trap file is touched or strangers keep trying. */
   lostAlarm: boolean;
+  /** Warn out loud when a copied message looks like a scam (checked on this Mac only). */
+  scamGuard: boolean;
   /** Remember the last 50 copied texts (encrypted) so you can ask for them back. */
   clipboardMemory: boolean;
   /** First-run setup finished. */
@@ -111,6 +113,7 @@ const defaults: RobotSettings = {
   sonName: "",
   daughterName: "",
   lostAlarm: false,
+  scamGuard: false,
   clipboardMemory: false,
   onboarded: false,
   uiLang: "en",
@@ -170,5 +173,6 @@ export function coreSettings(s: RobotSettings) {
     relations: { son: s.sonName, daughter: s.daughterName },
     lost_alarm: s.lostAlarm,
     clipboard_memory: s.clipboardMemory,
+    scam_guard: s.scamGuard,
   };
 }

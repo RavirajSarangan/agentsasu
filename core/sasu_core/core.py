@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from . import assist, briefing, care, extras, fastpath, focus, lifelog, tasks, tidy, watch
+from . import assist, briefing, care, extras, fastpath, focus, lifelog, scam, tasks, tidy, watch
 from . import memory as mem
 from .brain.agent import Agent, Executor, Turn
 from .brain.providers import SPECS, ChatClient, LLMError, pick_model
@@ -56,6 +56,7 @@ from .protocol import (
     SayEnd,
     SayPreview,
     SayStart,
+    ScamCheck,
     SetSettings,
     SkillRun,
     SnapRequest,
@@ -123,6 +124,7 @@ class BrainSettings:
     sos_contact: str = ""
     lost_alarm: bool = False
     clipboard_memory: bool = False
+    scam_guard: bool = False  # warn when a copied message looks like a scam (local rules only)
     distractions: list[str] = field(default_factory=lambda: list(focus.DEFAULT_DISTRACTIONS))
 
 
@@ -267,6 +269,9 @@ class Core:
             self._start(
                 self.dose_answer(bool(care.CONFIRM_YES.match(text)), lang or detect_lang(text))
             )
+            return
+        if not guest and role in ("owner", "family", "elder") and scam.TRIGGER.search(text):
+            self._start(self.scam_turn(text, lang or detect_lang(text)))
             return
         if role == "elder" and care.HELP.search(text):
             self._sos_task = asyncio.create_task(
@@ -1608,15 +1613,86 @@ class Core:
         last = ""
         while True:
             await asyncio.sleep(2)
-            if not self.settings.clipboard_memory or self.locked:
+            if not (self.settings.clipboard_memory or self.settings.scam_guard) or self.locked:
                 continue
             got = await self.runner(["pbpaste"], 3, None)
             clip = got.out.strip() if got.ok else ""
             if clip and clip != last:
                 last = clip
+                if self.settings.scam_guard:
+                    await self._scam_guard(clip)
+                if not self.settings.clipboard_memory:
+                    continue
                 recent = self.clips.all()[-1:] if self.clips.path.exists() else []
                 if lifelog.worth_keeping(clip) and not (recent and recent[0].text == clip):
                     self.clips.add(clip)
+
+    async def _scam_guard(self, clip: str) -> None:
+        """Copied text that clearly looks like a scam gets a warning (offline, nothing sent)."""
+        r = scam.check(clip[:5000])
+        if r.verdict != "scam":
+            return
+        self.audit.append("scam_check", source="guard", verdict=r.verdict, score=r.score)
+        await self.hub.emit(ScamCheck(verdict=r.verdict, reasons=r.reasons_in("en"), guard=True))
+        while self._turn and not self._turn.done():
+            await asyncio.sleep(0.2)
+        await self.speak(
+            "Careful: the text you just copied looks like a scam. " + r.reasons_in("en")[0] + ".",
+            "en",
+        )
+
+    async def scam_turn(self, text: str, lang: Lang) -> None:
+        await self.hub.emit(Transcript(text=text, lang=lang))
+        await self.hub.emit(Thinking())
+        message, source, ai = "", "clipboard", None
+        if not scam.SCREEN.search(text):
+            got = await self.runner(["pbpaste"], 3, None)
+            message = got.out.strip()[:5000] if got.ok else ""
+        if not message:
+            source = "screen"
+            if not self.brain_ready or self.settings.provider not in assist.VISION_PROVIDERS:
+                await self._say_turn(
+                    "Message-ஐ copy பண்ணிட்டு கேளுங்க."
+                    if lang == "ta"
+                    else "Copy the message first, then ask me.",
+                    lang,
+                    ok=False,
+                )
+                return
+            png = await self._screenshot()
+            if not png:
+                await self._say_turn(
+                    "I couldn't take a screenshot. Allow Screen Recording for Sasu.", "en", ok=False
+                )
+                return
+            out = await self._single_shot(scam.screen_messages(png), images=1)
+            message, ai = scam.screen_text(out or ""), scam.parse_ai(out or "")
+        local = scam.check(message)
+        if ai is None and local.verdict != "scam" and self.brain_ready:
+            # second opinion on the masked, redacted text; it can only raise the verdict
+            from .security.redact import redact
+
+            ai = scam.parse_ai(
+                await self._single_shot(scam.ai_messages(redact(scam.mask(message)))) or ""
+            )
+        result = scam.combine(local, ai)
+        self.audit.append(
+            "scam_check",
+            source=source,
+            verdict=result.verdict,
+            score=result.score,
+            ai=ai is not None,
+        )
+        await self.hub.emit(ScamCheck(verdict=result.verdict, reasons=result.reasons_in(lang)))
+        await self._say_turn(scam.reply(result, lang), lang)
+
+    async def _screenshot(self) -> bytes:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            shot = Path(d) / "screen.png"
+            await self.runner(["screencapture", "-x", "-t", "png", str(shot)], 10, None)
+            return shot.read_bytes() if shot.exists() else b""
 
     async def clip_recall(self, text: str, lang: Lang) -> None:
         clips = self.clips.all() if self.clips.path.exists() else []
@@ -1996,6 +2072,8 @@ class Core:
             self.audit.append("sos_phrase", set=self.sos.set)
         if isinstance(la := s.get("lost_alarm"), bool):
             self.settings.lost_alarm = la
+        if isinstance(sg := s.get("scam_guard"), bool):
+            self.settings.scam_guard = sg
         if isinstance(cm := s.get("clipboard_memory"), bool):
             self.settings.clipboard_memory = cm
             if not cm and self.clips.path.exists():

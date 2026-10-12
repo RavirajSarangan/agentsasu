@@ -53,6 +53,7 @@ const ROWS: RowDef[] = [
   { feature: "Open source", cells: ["yes", "no", "no", "no", "no", "yes"], refs: [4] },
   { feature: "Privacy meter — shows what left your Mac", cells: ["yes", "nd", "nd", "nd", "nd", "nd"] },
   { feature: "Tamper-evident action log", cells: ["yes", "nd", "nd", "nd", "nd", "nd"] },
+  { feature: "Scam checker for messages", note: "OTP tricks, fake bank links, “digital arrest”", cells: ["yes", "nd", "nd", "nd", "nd", "nd"] },
   { feature: "Care mode for elders", note: "slow Tamil, big text, medicine check-ins, missed-dose texts", cells: ["yes", "nd", "nd", "nd", "nd", "nd"] },
   { feature: "Robot that flies to the app it's using", cells: ["yes", "nd", "nd", "nd", "nd", "nd"] },
 ];

@@ -17,6 +17,8 @@ export type UndoOffer = { turnId: string; actions: string[] };
 export type RobotView = {
   state: RobotHeadState;
   caption: string;
+  /** The last scam check, shown as a coloured chip until the turn settles. */
+  scam: { verdict: "scam" | "suspicious" | "looks_ok"; reasons: string[] } | null;
   /** Amma mode: an elder is listening, so captions are large. */
   big: boolean;
   lang: Lang;
@@ -39,6 +41,7 @@ export type LocalEvent = { type: "settle" } | { type: "idle_timeout" } | { type:
 export const initialView: RobotView = {
   state: "idle",
   caption: "",
+  scam: null,
   big: false,
   lang: "en",
   activeTool: null,
@@ -76,7 +79,7 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
     case "partial_transcript":
       return { ...next, caption: event.text };
     case "transcript":
-      return { ...next, state: "thinking", caption: event.text, big: false, lang: event.lang, plan: null, undo: null };
+      return { ...next, state: "thinking", caption: event.text, big: false, scam: null, lang: event.lang, plan: null, undo: null };
     case "plan_preview":
       return { ...next, state: "thinking", plan: event.steps };
     case "undo_available":
@@ -99,6 +102,8 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
     case "watch":
     case "task":
       return { ...view };
+    case "scam":
+      return { ...next, scam: { verdict: event.verdict, reasons: event.reasons } };
     case "idle":
       return { ...next, state: "idle", caption: "", activeTool: null };
     case "alarm":
@@ -135,7 +140,7 @@ export function reduce(view: RobotView, event: CoreEvent | LocalEvent): RobotVie
     case "idle_timeout":
       return { ...next, state: "sleeping", caption: "", activeTool: null, confirm: null };
     case "settle":
-      return { ...next, state: "idle", caption: "", big: false };
+      return { ...next, state: "idle", caption: "", big: false, scam: null };
     case "disconnected":
       return { ...next, state: "error", caption: "Reconnecting to Sasu core…", activeTool: null, confirm: null };
   }

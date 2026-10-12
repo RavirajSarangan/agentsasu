@@ -38,7 +38,7 @@ export function App() {
 function Shelf() {
   const [theme, setTheme] = useState<ThemeName>("midnight");
   return (
-    <section className="bg-[var(--bg-2)] px-4 py-14 sm:px-6 sm:py-24">
+    <section className="cv bg-[var(--bg-2)] px-4 py-14 sm:px-6 sm:py-24">
       <div className="mx-auto max-w-[1180px]">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>

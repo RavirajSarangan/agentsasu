@@ -22,7 +22,7 @@ export function Guard() {
   const [who, setWho] = useState<"owner" | "stranger">("owner");
   const owner = who === "owner";
   return (
-    <section id="security" className="px-4 py-16 sm:px-6 sm:py-28">
+    <section id="security" className="cv px-4 py-16 sm:px-6 sm:py-28">
       <div className="mx-auto max-w-[1180px]">
         <div className="grid items-center gap-14 lg:grid-cols-[1fr_1.05fr]">
           <div>

@@ -1,16 +1,32 @@
 import { motion } from "motion/react";
 import { useState } from "react";
+import { RobotStates } from "./RobotStates";
 
 /** Both theme variants are in the page; CSS shows the one for the current theme and the
  * hidden one is never fetched (display:none + loading="lazy"). */
-export function Shot({ name, alt, width, height, className = "" }: { name: string; alt: string; width: number; height: number; className?: string }) {
+export function Shot({
+  name,
+  alt,
+  width,
+  height,
+  className = "",
+  sizes = "(max-width: 768px) 100vw, 1180px",
+}: {
+  name: string;
+  alt: string;
+  width: number;
+  height: number;
+  className?: string;
+  sizes?: string;
+}) {
   return (
     <>
       {(["light", "dark"] as const).map((t) => (
         <img
           key={t}
           src={`/shots/${name}-${t}.webp`}
-          srcSet={`/shots/${name}-${t}.webp 1x, /shots/${name}-${t}@2x.webp 2x`}
+          srcSet={`/shots/${name}-${t}.webp ${width}w, /shots/${name}-${t}@2x.webp ${width * 2}w`}
+          sizes={sizes}
           alt={alt}
           width={width}
           height={height}
@@ -28,13 +44,6 @@ const TABS = [
   { id: "memory", label: "Memory", alt: "Sasu's Memory page: encrypted facts like “Amma's BP tablet is at 8 in the morning”, searchable and deletable." },
   { id: "security", label: "Security", alt: "Sasu's Security page: voice lock active, tamper-evident log intact, trap files, intruder photo, away lock and panic word settings." },
   { id: "settings", label: "Amma mode", alt: "Sasu's Amma mode settings: medicine reminders for Amma and Appa with times, and which contact “son” means for calling by voice." },
-] as const;
-
-const STATES = [
-  { id: "listening", label: "Listening", alt: "The Sasu robot listening, with a live voice meter." },
-  { id: "thinking", label: "Thinking", alt: "The Sasu robot thinking about “Hey Sasu, play some Ilaiyaraaja”." },
-  { id: "dancing", label: "Music on", alt: "The Sasu robot smiling with the song chip “Ilaiyaraaja hits”." },
-  { id: "amma", label: "Amma mode", alt: "The Sasu robot asking in large Tamil text: “அம்மா, BP மாத்திரை நேரம். சாப்பிட்டீங்களா?”" },
 ] as const;
 
 export function Gallery() {
@@ -95,14 +104,7 @@ export function Gallery() {
           </motion.div>
         </figure>
 
-        <ul className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {STATES.map((s) => (
-            <li key={s.id} className="flex flex-col items-center gap-2 overflow-hidden rounded-[18px] bg-[var(--panel)] px-2 pt-2 pb-4 shadow-[var(--shadow-sm)]">
-              <Shot name={`robot-${s.id}`} alt={s.alt} width={270} height={285} className="h-auto w-full max-w-[220px]" />
-              <span className="text-sm font-semibold text-[var(--muted)]">{s.label}</span>
-            </li>
-          ))}
-        </ul>
+        <RobotStates />
       </div>
     </section>
   );

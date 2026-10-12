@@ -26,5 +26,6 @@ export function useSound() {
   return useSyncExternalStore(
     (f) => (subs.add(f), () => subs.delete(f)),
     () => on,
+    () => false, // pre-rendered page: sound starts off
   );
 }

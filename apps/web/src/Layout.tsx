@@ -24,6 +24,9 @@ export function DownloadButton({ size = "lg" }: { size?: "sm" | "lg" }) {
   );
 }
 
+// one request per page view, shared by every star button
+let starRequest: Promise<{ stargazers_count?: number } | null> | null = null;
+
 /** Live star count from GitHub, cached for an hour; falls back to a plain button. */
 function useStars(): number | null {
   const [stars, setStars] = useState<number | null>(null);
@@ -38,8 +41,7 @@ function useStars(): number | null {
     } catch {
       /* ignore */
     }
-    fetch(`https://api.github.com/repos/${REPO}`)
-      .then((r) => (r.ok ? r.json() : null))
+    (starRequest ??= fetch(`https://api.github.com/repos/${REPO}`).then((r) => (r.ok ? r.json() : null)))
       .then((d: { stargazers_count?: number } | null) => {
         if (typeof d?.stargazers_count !== "number") return;
         setStars(d.stargazers_count);
@@ -78,10 +80,11 @@ export function GithubButton() {
 }
 
 function ThemeToggle() {
-  const [theme, toggle] = useTheme();
+  const [, toggle] = useTheme();
   return (
-    <button onClick={toggle} className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--text)]" aria-label={theme === "light" ? "Use dark theme" : "Use light theme"}>
-      {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+    <button onClick={toggle} className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--text)]" aria-label="Switch between light and dark theme">
+      <Moon size={17} className="only-light" />
+      <Sun size={17} className="only-dark" />
     </button>
   );
 }
@@ -95,7 +98,7 @@ export function Nav({ home = "" }: { home?: string }) {
     return () => window.removeEventListener("scroll", on);
   }, []);
   return (
-    <header className={`fixed inset-x-0 top-0 z-50 transition-[background,box-shadow] duration-300 ${scrolled ? "bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] shadow-[0_1px_0_var(--line)] backdrop-blur-xl" : ""}`}>
+    <header className={`fixed inset-x-0 top-0 z-50 transition-[background,box-shadow] duration-300 ${scrolled ? "bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] shadow-[0_1px_0_var(--line)] max-md:bg-[var(--bg)] md:backdrop-blur-xl" : ""}`}>
       <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between px-4 sm:px-6">
         <a href={`${home}/#top`} className="flex items-center gap-2.5 text-[1.15rem] font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
           <Robot state="idle" size={28} halo={false} interactive={false} />

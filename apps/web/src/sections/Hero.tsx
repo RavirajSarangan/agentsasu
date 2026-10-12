@@ -1,5 +1,4 @@
 import { Languages, Lock, ShieldCheck, Undo2 } from "lucide-react";
-import { motion } from "motion/react";
 import { DownloadButton, StarButton } from "../Layout";
 import { Desk } from "./Desk";
 
@@ -18,18 +17,14 @@ export function Hero() {
       <div aria-hidden className="aurora pointer-events-none absolute left-1/2 top-0 h-[520px] w-[min(1100px,140vw)] -translate-x-1/2" />
       <div className="relative mx-auto max-w-[1180px]">
         <div className="grid items-end gap-10 lg:grid-cols-[1.25fr_1fr]">
-          <motion.h1
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="display text-[clamp(3rem,8.4vw,6.6rem)]"
+          <h1 className="rise display text-[clamp(3rem,8.4vw,6.6rem)]"
           >
             Talk to your Mac.
             <span lang="ta" className="mt-4 block text-[0.42em] font-semibold leading-[1.25] tracking-normal text-[var(--muted)]">
               உங்க Mac-கிட்ட பேசுங்க.
             </span>
-          </motion.h1>
-          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.12 }} className="flex flex-col gap-6 pb-2">
+          </h1>
+          <div className="rise flex flex-col gap-6 pb-2" style={{ animationDelay: "0.12s" }}>
             <p className="lede">
               Sasu is a little robot that lives in the corner of your screen. Say “Hey Sasu” in English, Tamil or a mix of both, and it opens apps, sorts files and
               changes settings. It only works for your voice, and anything it does can be undone.
@@ -46,11 +41,11 @@ export function Hero() {
               ))}
             </ul>
             <p className="text-sm text-[var(--faint)]">A free, open-source voice assistant for Mac, in English and தமிழ். Apple Silicon, macOS 13 or later.</p>
-          </motion.div>
+          </div>
         </div>
-        <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.25, ease: [0.22, 1, 0.36, 1] }} className="mt-12 sm:mt-16">
+        <div className="rise mt-12 sm:mt-16" style={{ animationDelay: "0.25s" }}>
           <Desk />
-        </motion.div>
+        </div>
       </div>
     </section>
   );

@@ -33,8 +33,8 @@ function speak(text: string, lang: "en" | "ta" | "mix", onEnd: () => void) {
 export function SayIt() {
   const [playing, setPlaying] = useState<number | null>(null);
   return (
-    <section id="say" className="px-4 py-16 sm:px-6 sm:py-28">
-      <div className="mx-auto grid max-w-[1180px] gap-14 lg:grid-cols-[0.8fr_1.2fr]">
+    <section id="say" className="cv px-4 py-16 sm:px-6 sm:py-28">
+      <div className="mx-auto grid max-w-[1180px] grid-cols-[minmax(0,1fr)] gap-14 lg:grid-cols-[0.8fr_1.2fr]">
         <div className="lg:sticky lg:top-28 lg:self-start">
           <h2 className="title text-[clamp(2.2rem,4.6vw,3.6rem)]">Say it the way you'd say it to a friend.</h2>
           <p className="lede mt-5">

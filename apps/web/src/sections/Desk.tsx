@@ -1,6 +1,6 @@
 import type { Cue } from "@sasu/brand";
 import { Check, FileText, Folder, ListChecks, Pause, Play, Undo2, Volume2 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useInView } from "motion/react";
 import type { RobotHeadState } from "robot-heads";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Robot, STATE_COLOR } from "../Robot";
@@ -83,10 +83,19 @@ function useWidth<T extends HTMLElement>() {
 }
 
 export function Desk() {
-  const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const [i, setI] = useState(reduced ? 10 : 0);
-  const [playing, setPlaying] = useState(!reduced);
+  const [i, setI] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  useEffect(() => {
+    // reduced motion: show one finished scene instead of the story (read after mount so the
+    // pre-rendered page and the first client render agree)
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setI(10);
+      setPlaying(false);
+    }
+  }, []);
   const [ref, w] = useWidth<HTMLDivElement>();
+  const box = useRef<HTMLDivElement>(null);
+  const inView = useInView(box, { margin: "80px" }); // the story only plays while you can see it
   const beat = SCRIPT[i]!;
   const narrow = w < NARROW;
   const robot = narrow ? Math.max(58, w * 0.17) : Math.max(54, Math.min(120, w * 0.095));
@@ -98,16 +107,16 @@ export function Desk() {
   const shift = Math.min(0, w - 10 - (cx + bubbleW / 2)) + Math.max(0, 10 - (cx - bubbleW / 2));
 
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || !inView) return;
     if (beat.cue) cue(beat.cue);
     const t = setTimeout(() => setI((n) => (n + 1) % SCRIPT.length), beat.ms);
     return () => clearTimeout(t);
-  }, [i, beat, playing]);
+  }, [i, beat, playing, inView]);
 
   return (
-    <div className="mx-auto w-full max-w-[1120px]">
+    <div ref={box} className="mx-auto w-full max-w-[1120px]">
       {/* the Mac */}
-      <div ref={ref} className={`relative w-full ${narrow ? "aspect-[4/5]" : "aspect-[16/10]"} rounded-[clamp(14px,2.2vw,28px)] bg-[#0e1430] p-[clamp(5px,0.7vw,9px)] shadow-[var(--shadow-lg)]`}>
+      <div ref={ref} className={`relative w-full aspect-[4/5] min-[792px]:aspect-[16/10] rounded-[clamp(14px,2.2vw,28px)] bg-[#0e1430] p-[clamp(5px,0.7vw,9px)] shadow-[var(--shadow-lg)]`}>
         <div className="relative h-full w-full overflow-hidden rounded-[clamp(10px,1.6vw,20px)]" style={{ fontSize: font }} data-narrow={narrow || undefined}>
           <Wallpaper />
           <MenuBar />
@@ -186,7 +195,7 @@ function SpeechBubble({ b, state, undo, width, shift = 0, fontSize }: { b: Bubbl
       exit={{ opacity: 0, y: -4, scale: 0.96, transition: { duration: 0.15 } }}
       transition={{ type: "spring", stiffness: 420, damping: 30 }}
       lang={b.lang}
-      className="relative mb-[0.9em] rounded-[1.1em] bg-white/90 px-[1em] py-[0.7em] text-center text-[1em] leading-snug text-[#141a33] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+      className="relative mb-[0.9em] rounded-[1.1em] bg-white/90 px-[1em] py-[0.7em] text-center text-[1em] leading-snug text-[#141a33] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.45)] md:backdrop-blur-xl"
       style={{ width, marginLeft: shift * 2, fontSize }}
     >
       {b.kind === "heard" && <span className="mb-[0.2em] block text-[0.78em] font-semibold" style={{ color: STATE_COLOR[state] }}>Heard you</span>}
@@ -243,7 +252,7 @@ function Wallpaper() {
 
 function MenuBar() {
   return (
-    <div className="absolute inset-x-0 top-0 z-10 flex h-[2em] items-center justify-between bg-white/18 px-[1em] text-[0.95em] font-medium text-white backdrop-blur-md">
+    <div className="absolute inset-x-0 top-0 z-10 flex h-[2em] items-center justify-between bg-white/18 px-[1em] text-[0.95em] font-medium text-white md:backdrop-blur-md">
       <div className="flex gap-[1.3em]">
         <span className="font-bold">Finder</span>
         <span className="hidden sm:inline">File</span>
@@ -253,16 +262,33 @@ function MenuBar() {
       </div>
       <div className="flex items-center gap-[1em]">
         <span className="flex h-[1.2em] w-[1.5em] items-center justify-center rounded-[0.3em] bg-white/30 text-[0.7em] font-bold">S</span>
-        <span>Wed 9:41</span>
+        <Clock />
       </div>
     </div>
+  );
+}
+
+/** The menu bar clock shows the visitor's real day and time, like a real Mac. */
+function Clock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const t = setInterval(tick, 15_000);
+    return () => clearInterval(t);
+  }, []);
+  const day = now.toLocaleDateString(undefined, { weekday: "short" });
+  const time = now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return (
+    <time dateTime={now.toISOString()} suppressHydrationWarning>
+      {day} {time}
+    </time>
   );
 }
 
 function Dock() {
   const tiles = ["#5b8def", "#f2b84b", "#57c785", "#ef6a5b", "#9b7bf0", "#4bc0d9", "#f08bb4"];
   return (
-    <div aria-hidden className="absolute bottom-[1.5%] left-1/2 z-10 flex -translate-x-1/2 gap-[0.55em] rounded-[1.2em] bg-white/20 p-[0.5em] backdrop-blur-md">
+    <div aria-hidden className="absolute bottom-[1.5%] left-1/2 z-10 flex -translate-x-1/2 gap-[0.55em] rounded-[1.2em] bg-white/20 p-[0.5em] md:backdrop-blur-md">
       {tiles.map((c) => (
         <span key={c} className="h-[2.6em] w-[2.6em] rounded-[0.7em] shadow-[inset_0_-2px_0_rgba(0,0,0,0.15)]" style={{ background: c }} />
       ))}
@@ -375,7 +401,7 @@ function VolumeHud() {
       initial={{ opacity: 0, scale: 0.85 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className="absolute left-1/2 top-[38%] z-[5] flex h-[11em] w-[11em] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-[1em] rounded-[1.6em] bg-white/75 text-[#141a33] backdrop-blur-xl"
+      className="absolute left-1/2 top-[38%] z-[5] flex h-[11em] w-[11em] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-[1em] rounded-[1.6em] bg-white/75 text-[#141a33] md:backdrop-blur-xl"
     >
       <Volume2 className="h-[3.4em] w-[3.4em]" strokeWidth={1.6} />
       <div className="h-[0.5em] w-[70%] overflow-hidden rounded-full bg-black/12">

@@ -24,15 +24,6 @@ from playwright.sync_api import Page, sync_playwright
 from sasu_core import care
 from sasu_core.protocol import (
     BrainStatus,
-    Care,
-    Fun,
-    Listening,
-    SayEnd,
-    SayStart,
-    Thinking,
-    Transcript,
-    TurnDone,
-    Wake,
 )
 from sasu_core.server import create_app
 from sasu_core.tools.runtime import Proc
@@ -77,9 +68,7 @@ def emit(core: Any, loop: asyncio.AbstractEventLoop, *events: Any) -> None:
 
 def save(png: bytes, name: str, width: int) -> None:
     img = Image.open(io.BytesIO(png))
-    img = img.convert("RGBA" if name.startswith("robot-") else "RGB")
-    if name.startswith("robot-"):  # the overlay keeps room above the bubble; trim it
-        img = img.crop((0, round(img.height * 95 / 380), img.width, img.height))
+    img = img.convert("RGB")
     for suffix, w in (("", width), ("@2x", width * 2)):
         im = img if img.width <= w else img.resize((w, round(img.height * w / img.width)), Image.LANCZOS)
         path = OUT / f"{name}{suffix}.webp"
@@ -118,24 +107,6 @@ def main() -> None:
             save(page.screenshot(), f"settings-{scheme}", 1080)
             page.close()
 
-            robot = ctx.new_page()
-            robot.set_viewport_size({"width": 270, "height": 380})
-            robot.goto(f"{UI}/#/overlay")
-            robot.add_style_tag(content="html, body, #root { background: transparent !important; }")
-            time.sleep(1.5)
-            states: list[tuple[str, list[Any]]] = [
-                ("listening", [Wake(source="wakeword"), Listening()]),
-                ("thinking", [Transcript(text="Hey Sasu, play some Ilaiyaraaja", lang="en"), Thinking()]),
-                ("dancing", [SayStart(text="Playing Ilaiyaraaja hits", lang="en"), SayEnd(), TurnDone(ok=True)]),
-                ("amma", [Fun(kind="dance", on=False), Care(kind="due", who="amma", what="BP மாத்திரை", time="08:00"), SayStart(text="அம்மா, BP மாத்திரை நேரம். சாப்பிட்டீங்களா?", lang="ta", big=True)]),
-            ]
-            for name, events in states:
-                emit(core, loop, *events)
-                time.sleep(1.4)
-                if name == "dancing":  # the song starts once the reply settles
-                    emit(core, loop, Fun(kind="dance", on=True, detail="Ilaiyaraaja hits"))
-                    time.sleep(0.5)
-                save(robot.screenshot(omit_background=True), f"robot-{name}-{scheme}", 270)
             ctx.close()
         browser.close()
 

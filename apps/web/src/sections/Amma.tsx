@@ -1,5 +1,5 @@
 import { BellRing, Check, HeartPulse, PhoneCall, Pill, Siren, TriangleAlert, Type } from "lucide-react";
-import { Shot } from "./Gallery";
+import { AmmaSpeaking } from "./RobotStates";
 
 const POINTS = [
   { Icon: Type, title: "Slow Tamil, big text", body: "When an elder speaks, Sasu answers slowly in Tamil, with large captions they can read without glasses." },
@@ -17,8 +17,8 @@ const DOSES = [
 
 export function Amma() {
   return (
-    <section id="amma" className="px-4 py-16 sm:px-6 sm:py-28">
-      <div className="mx-auto grid max-w-[1180px] items-center gap-14 lg:grid-cols-[1.05fr_1fr]">
+    <section id="amma" className="cv px-4 py-16 sm:px-6 sm:py-28">
+      <div className="mx-auto grid max-w-[1180px] grid-cols-[minmax(0,1fr)] items-center gap-14 lg:grid-cols-[1.05fr_1fr]">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-[var(--accent)]">
             <HeartPulse size={16} /> Amma mode
@@ -38,13 +38,9 @@ export function Amma() {
         </div>
 
         <div className="relative flex flex-col items-center gap-6">
-          <Shot
-            name="robot-amma"
-            alt="The Sasu robot asking in large Tamil text: “அம்மா, BP மாத்திரை நேரம். சாப்பிட்டீங்களா?” (Amma, it's time for your BP tablet. Have you taken it?)"
-            width={270}
-            height={285}
-            className="h-auto w-full max-w-[300px]"
-          />
+          <div className="flex h-[300px] w-full max-w-[340px] flex-col items-center justify-end gap-3">
+            <AmmaSpeaking size={130} big />
+          </div>
           <div className="w-full max-w-[420px] rounded-[22px] bg-[var(--panel)] p-5 shadow-[var(--shadow-lg)]">
             <p className="flex items-center gap-2 text-sm font-semibold">
               <HeartPulse size={15} className="text-[var(--accent)]" /> Care today

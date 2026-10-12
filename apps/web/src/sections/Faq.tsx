@@ -18,8 +18,8 @@ const QA = [
 
 export function Faq() {
   return (
-    <section id="faq" className="px-4 py-16 sm:px-6 sm:py-28">
-      <div className="mx-auto grid max-w-[1180px] gap-12 lg:grid-cols-[0.8fr_1.2fr]">
+    <section id="faq" className="cv px-4 py-16 sm:px-6 sm:py-28">
+      <div className="mx-auto grid max-w-[1180px] grid-cols-[minmax(0,1fr)] gap-12 lg:grid-cols-[0.8fr_1.2fr]">
         <h2 className="title text-[clamp(2.2rem,4.6vw,3.6rem)]">Questions people ask</h2>
         <Accordion.Root type="single" collapsible defaultValue="0" className="border-t border-[var(--line)]">
           {QA.map(([q, a], i) => (

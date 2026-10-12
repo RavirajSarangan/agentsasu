@@ -61,6 +61,7 @@
 }
 
 html {
+  overflow-x: hidden;
   overflow-x: clip;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
@@ -257,6 +258,7 @@ body {
 
 /* The hero robot can float a few pixels past a phone-width viewport. */
 body {
+  overflow-x: hidden;
   overflow-x: clip;
 }
 
@@ -265,7 +267,6 @@ body {
   background:
     radial-gradient(40% 55% at 30% 35%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
     radial-gradient(35% 45% at 72% 30%, color-mix(in srgb, #ffb547 16%, transparent), transparent 70%);
-  filter: blur(30px);
 }
 
 .chip {
@@ -277,7 +278,122 @@ body {
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text);
-  background: color-mix(in srgb, var(--panel) 75%, transparent);
+  background: var(--panel);
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(8px);
+}
+
+/* ── live robot-state cards (transform/opacity only; paused for reduced motion) ── */
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+.bubble {
+  max-width: 92%;
+  border-radius: 16px;
+  padding: 0.55rem 0.9rem;
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: #141a33;
+  background: #ffffff;
+  box-shadow: 0 8px 24px -10px rgba(20, 26, 51, 0.35), 0 0 0 1px rgba(20, 26, 51, 0.06);
+}
+.word {
+  transition: opacity 0.25s ease;
+}
+.eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+.eq i {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: eq 0.9s ease-in-out infinite alternate;
+}
+@keyframes eq {
+  from { transform: scaleY(0.25); }
+  to { transform: scaleY(1); }
+}
+.dance {
+  animation: dance 0.9s ease-in-out infinite alternate;
+  transform-origin: 50% 90%;
+}
+@keyframes dance {
+  from { transform: translateY(0) rotate(-6deg); }
+  to { transform: translateY(-6px) rotate(6deg); }
+}
+.note {
+  position: absolute;
+  top: 10%;
+  font-size: 1.1rem;
+  color: #e0569b;
+  opacity: 0;
+  animation: note 2.1s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes note {
+  0% { opacity: 0; transform: translateY(10px) scale(0.8); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-40px) scale(1.1) rotate(12deg); }
+}
+.spin-slow {
+  animation: spin 3s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eq i, .dance, .note, .spin-slow, .breathe { animation: none; }
+  .note { display: none; }
+}
+
+/* ── speed on phones ───────────────────────────────────────────────────────────
+   Below-the-fold sections skip layout and paint until they get close. */
+.cv {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 900px;
+}
+/* Frosted glass is expensive on phone GPUs: only on bigger screens. */
+@media (max-width: 767px) {
+  .glass,
+  .md-blur {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+/* Older Safari without color-mix(): plain colours instead of tints. */
+@supports not (color: color-mix(in srgb, red, blue)) {
+  .aurora {
+    background: radial-gradient(40% 55% at 30% 35%, rgba(43, 73, 163, 0.18), transparent 70%);
+  }
+}
+
+/* Theme toggle: both icons are rendered; the theme picks one (same HTML before and after JS). */
+:root:not([data-theme="dark"]) .only-dark,
+:root[data-theme="dark"] .only-light {
+  display: none;
+}
+/* Hero entrance without JavaScript, so the pre-rendered text shows at once. */
+.rise {
+  animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rise { animation: none; }
 }

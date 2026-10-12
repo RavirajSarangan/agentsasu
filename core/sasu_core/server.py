@@ -9,6 +9,7 @@ import secrets
 import time
 from collections import deque
 from collections.abc import AsyncIterator
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -25,15 +26,29 @@ from fastapi import (
 from fastapi import status as http
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from . import __version__, care
+from . import __version__, care, tasks
 from .core import Core
 from .demo import demo_loop
 from .hub import Hub
 from .protocol import ErrorEvent, Locked, Ready, ui_command_adapter
 from .security.audit import AuditLog
 from .security.voiceprint import VoiceprintVault
+
+
+class TaskIn(BaseModel):
+    request: str = Field(min_length=3, max_length=200)
+    days: list[int] = Field(min_length=1, max_length=7)
+    hour: int = Field(ge=0, le=23)
+    minute: int = Field(default=0, ge=0, le=59)
+
+    @field_validator("days")
+    @classmethod
+    def _days(cls, v: list[int]) -> list[int]:
+        if any(d < 0 or d > 6 for d in v):
+            raise ValueError("days are 0 (Mon) to 6 (Sun)")
+        return v
 
 
 class CareIn(BaseModel):
@@ -204,6 +219,41 @@ def create_app(
     async def delete_care(did: str) -> dict[str, bool]:
         ok = bool(re.fullmatch(r"[0-9a-f]{8}", did)) and core.care_store.remove(did)
         audit.append("care", action="delete", removed=ok)
+        return {"ok": ok}
+
+    @app.get("/api/tasks", dependencies=[Depends(require_token)])
+    async def list_tasks() -> list[dict[str, Any]]:
+        return [{**asdict(t), "when": tasks.when(t)} for t in core.tasks.all()]
+
+    @app.post("/api/tasks", dependencies=[Depends(require_token)])
+    async def add_task(body: TaskIn) -> dict[str, str]:
+        t = core.tasks.add(
+            tasks.Task(body.request.strip(), sorted(set(body.days)), body.hour, body.minute)
+        )
+        audit.append("task", id=t.id, action="add", when=tasks.when(t))
+        return {"id": t.id}
+
+    @app.post("/api/tasks/{tid}/run", dependencies=[Depends(require_token)])
+    async def run_task(tid: str) -> dict[str, bool]:
+        if core.tasks.get(tid) is None:
+            raise HTTPException(http.HTTP_404_NOT_FOUND)
+        core._bg = asyncio.create_task(core.run_task_now(tid))
+        return {"ok": True}
+
+    @app.post("/api/tasks/{tid}/toggle", dependencies=[Depends(require_token)])
+    async def toggle_task(tid: str) -> dict[str, bool]:
+        t = core.tasks.get(tid)
+        if t is None:
+            raise HTTPException(http.HTTP_404_NOT_FOUND)
+        t.enabled = not t.enabled
+        core.tasks.update(t)
+        audit.append("task", id=tid, action="enable" if t.enabled else "disable")
+        return {"enabled": t.enabled}
+
+    @app.delete("/api/tasks/{tid}", dependencies=[Depends(require_token)])
+    async def delete_task(tid: str) -> dict[str, bool]:
+        ok = bool(re.fullmatch(r"[0-9a-f]{8}", tid)) and core.tasks.remove(tid)
+        audit.append("task", id=tid, action="delete", removed=ok)
         return {"ok": ok}
 
     @app.get("/api/watch", dependencies=[Depends(require_token)])

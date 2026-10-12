@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from . import assist, briefing, care, extras, fastpath, focus, lifelog, tidy, watch
+from . import assist, briefing, care, extras, fastpath, focus, lifelog, tasks, tidy, watch
 from . import memory as mem
 from .brain.agent import Agent, Executor, Turn
 from .brain.providers import SPECS, ChatClient, LLMError, pick_model
@@ -59,6 +60,7 @@ from .protocol import (
     SkillRun,
     SnapRequest,
     SpeakerRejected,
+    TaskState,
     TextCommand,
     Thinking,
     Transcript,
@@ -185,6 +187,11 @@ class Core:
         self.home = Path.home()  # where Desktop / Downloads live (tests point it elsewhere)
         self.watches: dict[str, tuple[watch.Watch, asyncio.Task[None]]] = {}
         self._bg: asyncio.Task[None] | None = None
+        self.tasks = tasks.TaskStore(data_dir / "tasks.bin", vault.aead)
+        self._unattended: str | None = None  # id of the scheduled task running now
+        self._blocked: str | None = None  # the question an unattended run couldn't ask
+        self._needs_you: str | None = None  # task waiting for "Sasu, run it"
+        self._last_said = ""
         self.watch_every = {
             "download": 2.0,
             "file": 5.0,
@@ -345,6 +352,12 @@ class Core:
                 return
             if extras.is_read(text):
                 self._start(self.read_aloud())
+                return
+            if role == "owner" and (task := tasks.parse(text)) is not None:
+                self._start(self.add_task(task, text, lang or detect_lang(text)))
+                return
+            if self._needs_you and tasks.RUN_IT.match(text):
+                self._bg = asyncio.create_task(self.run_task_now(self._needs_you))
                 return
             if watch.STOP.search(text):
                 self._start(self.stop_watches(lang or detect_lang(text)))
@@ -595,6 +608,76 @@ class Core:
             await self.speak(out, "ta" if assist.TAMIL.search(out) else lang)
         await self.hub.emit(TurnDone(ok=bool(out)))
 
+    # ── scheduled tasks ────────────────────────────────────────────────────
+    def _source(self, guest: bool = False) -> str:
+        return "guest" if guest else "schedule" if self._unattended else "owner"
+
+    async def add_task(self, task: tasks.Task, text: str, lang: Lang) -> None:
+        await self.hub.emit(Transcript(text=text, lang=lang))
+        self.tasks.add(task)
+        self.audit.append("task", id=task.id, action="add", when=tasks.when(task))
+        await self.hub.emit(TaskState(id=task.id, state="done", summary="scheduled"))
+        await self._say_turn(
+            f"சரி. {tasks.when(task)}: “{task.request}”."
+            if lang == "ta"
+            else f"Okay. {tasks.when(task)} I'll do: “{task.request}”.",
+            lang,
+        )
+
+    async def run_task(self, task: tasks.Task) -> None:
+        """An unattended run: safe steps happen, anything needing a yes waits for the owner."""
+        self._unattended, self._blocked, self._last_said = task.id, None, ""
+        self.audit.append("task", id=task.id, action="run", source="schedule")
+        await self.hub.emit(TaskState(id=task.id, state="running", summary=task.request))
+        state = "done"
+        try:
+            self.start_text_turn(task.request, role="owner")
+            if self._turn is not None:
+                await asyncio.wait({self._turn})  # a cancelled run must not stop the scheduler
+                if self._turn.cancelled():
+                    state = "failed"
+        except Exception:  # noqa: BLE001 — a broken task must not stop the scheduler
+            state = "failed"
+        finally:
+            self._unattended = None
+        summary = self._last_said[:300]
+        if self._blocked:
+            state, summary = "needs_you", f"Waiting for your yes: {self._blocked}"
+            self._needs_you = task.id
+            await self._notify(f"Sasu needs you: {task.request}. Say “Sasu, run it”.")
+        task.last_day = time.strftime("%Y-%m-%d", time.localtime(self.clock()))
+        task.last_state, task.last_summary = state, summary
+        self.tasks.update(task)
+        self.audit.append("task", id=task.id, action=state)
+        await self.hub.emit(TaskState(id=task.id, state=state, summary=summary))  # type: ignore[arg-type]
+
+    async def run_task_now(self, tid: str) -> None:
+        """The owner is here: run it as a normal turn, questions and all."""
+        task = self.tasks.get(tid)
+        if self._needs_you == tid:
+            self._needs_you = None
+        if task is None:
+            return
+        self.audit.append("task", id=tid, action="run", source="owner")
+        await self.hub.emit(TaskState(id=tid, state="running", summary=task.request))
+        self.start_text_turn(task.request, role="owner")
+        if self._turn is not None:
+            await asyncio.wait({self._turn})
+        task.last_state, task.last_summary = "done", self._last_said[:300]
+        self.tasks.update(task)
+        await self.hub.emit(TaskState(id=tid, state="done", summary=task.last_summary))
+
+    async def tasks_tick(self) -> None:
+        for task in self.tasks.all():
+            if tasks.due(task, self.clock()):
+                await self.run_task(task)
+
+    async def _watch_tasks(self) -> None:
+        while True:
+            await asyncio.sleep(30)
+            if not self.locked and not (self._turn and not self._turn.done()):
+                await self.tasks_tick()
+
     # ── watch & tell ───────────────────────────────────────────────────────
     async def start_watch(self, req: watch.Request, text: str, lang: Lang) -> None:
         ta = lang == "ta"
@@ -829,7 +912,7 @@ class Core:
         from .protocol import PlanPreview
 
         turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, role=self._role)
-        self.audit.append("command", source="owner", text=text, turn=turn.id, fast="tidy")
+        self.audit.append("command", source=self._source(), text=text, turn=turn.id, fast="tidy")
         await self.hub.emit(Transcript(text=text, lang=lang))
         await self.hub.emit(Thinking())
         folder = self.home / where
@@ -883,7 +966,7 @@ class Core:
         """Common requests, done locally in about a second."""
         turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, guest=guest, role=self._role)
         self.audit.append(
-            "command", source="guest" if guest else "owner", text=text, turn=turn.id, fast=fast.kind
+            "command", source=self._source(guest), text=text, turn=turn.id, fast=fast.kind
         )
         await self.hub.emit(Transcript(text=text, lang=lang))
         ex = self._executor()
@@ -929,6 +1012,7 @@ class Core:
         """Streams the caption word by word while the Mac voice speaks it.
         Amma mode (an elder speaking, or a care reminder): large captions, slower voice."""
         words = text.split(" ")
+        self._last_said = text
         elder = self._role == "elder" if big is None else big
         self.speaker.rate = 150 if elder else 195
         voice = asyncio.create_task(self._say(text)) if self.settings.tts else None
@@ -971,7 +1055,7 @@ class Core:
     async def agent_turn(self, text: str, *, guest: bool = False, lang: Lang | None = None) -> None:
         lang = lang or detect_lang(text)
         turn = Turn(id=uuid.uuid4().hex[:12], lang=lang, guest=guest, role=self._role)
-        self.audit.append("command", source="guest" if guest else "owner", text=text, turn=turn.id)
+        self.audit.append("command", source=self._source(guest), text=text, turn=turn.id)
         await self.hub.emit(Transcript(text=text, lang=lang))
         await self.hub.emit(Thinking())
         client = await self._client()
@@ -1120,6 +1204,7 @@ class Core:
             asyncio.create_task(self._watch_nudges()),
             asyncio.create_task(self._watch_clipboard()),
             asyncio.create_task(self._watch_care()),
+            asyncio.create_task(self._watch_tasks()),
         ]
         if voice_models.ready(self.models_dir):
             await self.start_voice()
@@ -1768,6 +1853,11 @@ class Core:
         """`confirmed`: the owner already said yes to the plan; dangerous still needs Touch ID."""
         if risk == "safe":
             return True
+        if self._unattended is not None:
+            # scheduled runs never auto-approve: stop and wait for the owner
+            self._blocked = prompt
+            self.audit.append("approval", step="schedule", risk=risk, prompt=prompt, ok=False)
+            return False
         if not confirmed:
             cid = uuid.uuid4().hex[:12]
             await self.hub.emit(ConfirmRequest(id=cid, prompt=prompt, lang=lang, risk=risk))

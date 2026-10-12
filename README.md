@@ -46,6 +46,7 @@ No buttons, no commands to learn. Speak the way you'd talk to a friend.
 | “Desktop clean pannu” | Tanglish | Sorts Desktop into Screenshots, PDFs, Images…, bins duplicates (shows the plan; undoable) |
 | “Download mudinja sollu” · “100% aana sollu” | Tanglish | Watches the download or battery and tells you when it's done |
 | “Indha page-la price kuranja sollu” | Tanglish | Checks the open page every 10 minutes and speaks up when the price drops |
+| “Daily 9 mani-ku good morning sollu” · “every Sunday Desktop clean pannu” | Tanglish | Runs it on a schedule; anything risky waits for your “run it” |
 | “Sasu, undo” | any | Puts back whatever it just changed |
 
 Common requests (music, volume, opening apps, time, battery, dark mode) run **on your Mac in about 1.5 s**, without any AI service.

@@ -725,6 +725,42 @@
         "title": "SpeakerRejected",
         "type": "object"
       },
+      "TaskState": {
+        "description": "A scheduled task ran (or needs the owner's yes).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "done",
+              "needs_you",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          },
+          "type": {
+            "const": "task",
+            "default": "task",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state"
+        ],
+        "title": "TaskState",
+        "type": "object"
+      },
       "Thinking": {
         "properties": {
           "type": {
@@ -1095,6 +1131,7 @@
         "sleep": "#/$defs/Sleep",
         "snap_request": "#/$defs/SnapRequest",
         "speaker_rejected": "#/$defs/SpeakerRejected",
+        "task": "#/$defs/TaskState",
         "thinking": "#/$defs/Thinking",
         "tool_end": "#/$defs/ToolEnd",
         "tool_start": "#/$defs/ToolStart",
@@ -1227,6 +1264,9 @@
       },
       {
         "$ref": "#/$defs/WatchState"
+      },
+      {
+        "$ref": "#/$defs/TaskState"
       }
     ]
   },

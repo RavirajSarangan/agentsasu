@@ -219,6 +219,15 @@ class MeetingState(BaseModel):
     lines: int = 0
 
 
+class TaskState(BaseModel):
+    """A scheduled task ran (or needs the owner's yes)."""
+
+    type: Literal["task"] = "task"
+    id: str
+    state: Literal["running", "done", "needs_you", "failed"]
+    summary: str = ""
+
+
 class WatchState(BaseModel):
     """Watch & tell: something Sasu is keeping an eye on."""
 
@@ -331,7 +340,8 @@ CoreEvent = Annotated[
     | Caption
     | MeetingState
     | Care
-    | WatchState,
+    | WatchState
+    | TaskState,
     Field(discriminator="type"),
 ]
 

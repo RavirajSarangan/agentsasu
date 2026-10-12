@@ -1,6 +1,6 @@
 [project]
 name = "sasu-core"
-version = "0.4.1"
+version = "0.5.0"
 description = "SASU agent core: voice, brain and tools (Tauri sidecar)"
 requires-python = ">=3.12,<3.13"
 license = "MIT"

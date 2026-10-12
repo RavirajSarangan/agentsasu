@@ -120,7 +120,7 @@ def test_handshake_health_and_auth(core: Core) -> None:
 
 def test_ws_accepts_app_origin_and_sends_ready(core: Core) -> None:
     msg = asyncio.run(first_message(ws_url(core)))
-    assert msg == {"type": "ready", "version": "0.4.1", "demo": False}
+    assert msg == {"type": "ready", "version": "0.5.0", "demo": False}
 
 
 @pytest.mark.parametrize(

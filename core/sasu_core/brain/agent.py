@@ -59,6 +59,10 @@ def confirm_text(name: str, args: dict[str, Any]) -> str:
             return f"Turn Wi-Fi {'on' if args.get('on') else 'off'}?"
         case "shell_run":
             return f"Run this command: {str(args.get('command', ''))[:160]}"
+        case "screen_press" | "screen_set_value" | "screen_menu" | "screen_key":
+            from ..tools.screen import describe
+
+            return describe(name, args)
         case _:
             tool = REGISTRY.get(name)
             return f"Allow {tool.describe_call(args) if tool else name}?"

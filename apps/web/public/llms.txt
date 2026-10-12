@@ -8,7 +8,7 @@ Key facts:
 - Amma mode for elderly parents: slow Tamil speech and large captions, medicine reminders that ask "did you take it?" and text the family on a missed dose, calling family by voice, and a spoken "help" alert.
 - Tamil Panchangam: Rahu kaalam, Yamagandam, Kuligai, thithi and the Tamil date for the home city, computed on the Mac.
 - A scam checker ("Sasu, idhu scam-aa?") that flags OTP requests, fake bank links, prize and "digital arrest" messages, offline first.
-- Agent features: desktop tidy, watch & tell (downloads, battery, price drops, commands), and scheduled tasks that never auto-approve risky steps.
+- Agent features: screen control (clicks and fills an app's own buttons and fields by number, asking before each step, never password fields), desktop tidy, watch & tell (downloads, battery, price drops, commands), and scheduled tasks that never auto-approve risky steps.
 - Risky actions need Touch ID; every action can be undone ("Sasu, undo"); a hash-chained log records everything.
 
 ## Links

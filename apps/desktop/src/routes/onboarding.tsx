@@ -184,7 +184,7 @@ function Welcome() {
 
 const PERMS: { kind: PermissionKind; Icon: typeof Mic; title: string; why: string }[] = [
   { kind: "microphone", Icon: Mic, title: "Microphone", why: "To hear “Hey Sasu” and your commands. Audio never leaves this Mac." },
-  { kind: "accessibility", Icon: Keyboard, title: "Accessibility", why: "To click, type and arrange windows for you." },
+  { kind: "accessibility", Icon: Keyboard, title: "Accessibility", why: "To click buttons, fill fields and arrange windows for you, one step at a time and only after you say yes. Never password fields." },
   { kind: "screen_recording", Icon: MonitorUp, title: "Screen Recording", why: "To read what's on screen when you ask about it." },
   { kind: "automation", Icon: AppWindow, title: "Automation", why: "To control apps like Safari, Music and Calendar. macOS asks per app." },
 ];

@@ -10,7 +10,15 @@ from __future__ import annotations
 from typing import Any
 
 WINDOW = 32
-OUTBOUND = {"web_open", "web_search", "clipboard_set", "shell_run", "notes_add", "reminders_add"}
+OUTBOUND = {
+    "web_open",
+    "web_search",
+    "clipboard_set",
+    "shell_run",
+    "notes_add",
+    "reminders_add",
+    "screen_set_value",
+}
 
 
 def _strings(value: Any) -> list[str]:

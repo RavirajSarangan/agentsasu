@@ -35,7 +35,7 @@ public enum Roles {
 /// Untrusted text read during a turn can't be smuggled out. Same as security/leakguard.py.
 public enum LeakGuard {
     static let window = 32
-    static let outbound: Set<String> = ["web_open", "web_search", "clipboard_set", "shell_run", "notes_add", "reminders_add"]
+    static let outbound: Set<String> = ["web_open", "web_search", "clipboard_set", "shell_run", "notes_add", "reminders_add", "screen_set_value"]
 
     static func norm(_ s: String) -> String { s.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ") }
 
